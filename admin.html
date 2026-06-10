@@ -69,10 +69,10 @@ const fbAuth = firebase.auth();
   <div class="auth-card" style="max-width:360px">
     <h3 style="text-align:center;color:#1a1a2e;margin-bottom:16px">🛡️ سوبر أدمن</h3>
     <div class="auth-err" id="admin-err"></div>
-    <div class="fg"><label>اسم المستخدم</label><input type="text" id="admin-user"></div>
+    <div class="fg"><label>البريد الإلكتروني</label><input type="email" id="admin-user" style="direction:ltr"></div>
     <div class="fg"><label>كلمة المرور</label><div class="pwd-wrap"><input type="password" id="admin-pass" onkeydown="if(event.key==='Enter')adminLogin()"><button type="button" class="pwd-eye" onclick="togglePwd(this)" tabindex="-1" aria-label="إظهار كلمة المرور">👁️</button></div></div>
     <button class="btn" style="width:100%;padding:11px;background:#1a1a2e;color:white" onclick="adminLogin()">دخول →</button>
-    <div style="font-size:.72rem;color:#aaa;text-align:center;margin-top:10px">الافتراضي: admin / admin123 — غيّرها فور الدخول</div>
+    <div style="text-align:center;margin-top:10px"><a href="#" onclick="adminForgotPass();return false" style="font-size:.78rem;color:#90caf9">نسيت كلمة المرور؟</a></div>
   </div>
 </div>
 
@@ -124,33 +124,46 @@ function fmtDate(dateStr){
   return dateStr;
 }
 
-// ─── دخول السوبر أدمن: كلمة المرور تُخزن في السحابة (config/super) لتعمل من أي جهاز
-const DEFAULT_SUPER = { user:'admin', pass:'admin123' };
-function getSuperCloud(){
-  return fbDB.collection('config').doc('super').get()
-    .then(s=> s.exists ? s.data() : DEFAULT_SUPER)
-    .catch(()=>DEFAULT_SUPER);
+// ─── دخول السوبر أدمن: حساب Firebase Auth حقيقي — لا كلمات مرور مخزنة بنص صريح
+// الحماية الفعلية في قواعد Firestore — هذا المعرّف لتجربة الاستخدام فقط
+const ADMIN_UID = 'I2Stgz5hPVM6qeG19NCmgj4GCck1';
+function _showPanel(){
+  document.getElementById('admin-login-wrap').style.display='none';
+  document.getElementById('admin-panel-wrap').style.display='block';
+  adminLoadAccounts();
 }
 function adminLogin(){
-  const u = document.getElementById('admin-user').value.trim();
+  const em = document.getElementById('admin-user').value.trim().toLowerCase();
   const pw = document.getElementById('admin-pass').value;
   const err = document.getElementById('admin-err');
+  if (!em || !pw){ err.textContent='أدخل البريد وكلمة المرور'; return; }
   err.textContent='⏳ جارٍ التحقق...';
-  getSuperCloud().then(sa=>{
-    if (u!==sa.user || pw!==sa.pass){ err.textContent='بيانات الدخول غير صحيحة'; return; }
-    sessionStorage.setItem('l7_admin_in','1');
-    document.getElementById('admin-login-wrap').style.display='none';
-    document.getElementById('admin-panel-wrap').style.display='block';
-    adminLoadAccounts();
-  });
+  fbAuth.signInWithEmailAndPassword(em, pw)
+    .then(cred=>{
+      if (cred.user.uid !== ADMIN_UID){ fbAuth.signOut(); err.textContent='هذا الحساب ليس حساب السوبر أدمن'; return; }
+      err.textContent=''; _showPanel();
+    })
+    .catch(()=>{ err.textContent='بيانات الدخول غير صحيحة'; });
 }
-function adminLogout(){ sessionStorage.removeItem('l7_admin_in'); location.reload(); }
+function adminForgotPass(){
+  const em = document.getElementById('admin-user').value.trim().toLowerCase();
+  const err = document.getElementById('admin-err');
+  if (!em){ err.textContent='اكتب بريد الأدمن أولاً ثم اضغط الرابط'; return; }
+  fbAuth.sendPasswordResetEmail(em)
+    .then(()=>{ err.textContent=''; alert('📬 أُرسل رابط إعادة التعيين إلى '+em); })
+    .catch(e=>{ err.textContent='فشل الإرسال: '+(e.message||''); });
+}
+function adminLogout(){ fbAuth.signOut().finally(()=>location.reload()); }
 function adminChangePass(){
-  const np = prompt('كلمة المرور الجديدة للسوبر أدمن:');
-  if (!np || np.length<5){ if(np!==null) alert('5 أحرف على الأقل'); return; }
-  getSuperCloud().then(sa=>{
-    return fbDB.collection('config').doc('super').set({ user:sa.user, pass:np });
-  }).then(()=>alert('تم التغيير ✔')).catch(e=>alert('فشل: '+(e.message||'')));
+  const u = fbAuth.currentUser;
+  if (!u) return;
+  const np = prompt('كلمة المرور الجديدة للسوبر أدمن (6 أحرف على الأقل):');
+  if (!np || np.length<6){ if(np!==null) alert('6 أحرف على الأقل'); return; }
+  u.updatePassword(np)
+    .then(()=>alert('تم التغيير ✔'))
+    .catch(e=>alert(e.code==='auth/requires-recent-login'
+      ? 'لأمانك: سجّل الخروج ثم الدخول مجدداً وغيّرها مباشرة'
+      : 'فشل: '+(e.message||'')));
 }
 
 // ─── جلب وإدارة المنشآت من Firestore
@@ -224,17 +237,17 @@ function adminDeleteAcc(id){
   const a=accounts.find(x=>x.id===id); if(!a) return;
   if (!confirm('حذف منشأة "'+a.biz+'" وجميع بياناتها نهائياً؟')) return;
   if (!confirm('تأكيد أخير — لا يمكن التراجع!')) return;
-  fbDB.collection('accounts').doc(id).delete()
+  const ops = [fbDB.collection('accounts').doc(id).delete()];
+  if (a.user) ops.push(fbDB.collection('usernames').doc(a.user).delete().catch(()=>{}));
+  Promise.all(ops)
     .then(()=>{ accounts = accounts.filter(x=>x.id!==id); renderAdminPanel(); })
     .catch(e=>alert('فشل الحذف: '+(e.message||'')));
 }
 
-// init — استئناف الجلسة
-if (sessionStorage.getItem('l7_admin_in')==='1'){
-  document.getElementById('admin-login-wrap').style.display='none';
-  document.getElementById('admin-panel-wrap').style.display='block';
-  adminLoadAccounts();
-}
+// init — استئناف جلسة الأدمن عبر Firebase (للأدمن فقط)
+fbAuth.onAuthStateChanged(u=>{
+  if (u && u.uid === ADMIN_UID) _showPanel();
+});
 </script>
 </body>
 </html>

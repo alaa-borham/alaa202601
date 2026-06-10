@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // السوبر أدمن: حساب alaae77+superadmin@gmail.com
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'I2Stgz5hPVM6qeG19NCmgj4GCck1';
+    }
+    // ملفات المنشآت: كل منشأة ترى ملفها فقط — والأدمن يدير الجميع
+    // المنشأة لا تستطيع تعديل اشتراكها (subEnd/suspended) — بياناتها التشغيلية فقط
+    match /accounts/{uid} {
+      allow read, write: if isAdmin();
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data', 'updatedAt']);
+    }
+    // فهرس أسماء المستخدمين: قراءة فردية فقط (للدخول بالاسم) — سرد القائمة ممنوع
+    match /usernames/{uname} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

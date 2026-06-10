@@ -995,15 +995,16 @@ function registerAccount() {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = 'صيغة الإيميل غير صحيحة'; return; }
   if (pass.length<6) { err.textContent = 'كلمة المرور 6 أحرف على الأقل'; return; }
   err.textContent = '⏳ جارٍ إنشاء الحساب...';
-  // التأكد من عدم تكرار اسم المستخدم
-  fbDB.collection('accounts').where('user','==',user).get().then(q=>{
-    if (!q.empty) { err.textContent = tr('authUserExists'); throw '_handled'; }
+  // التأكد من عدم تكرار اسم المستخدم (عبر فهرس الأسماء العام)
+  fbDB.collection('usernames').doc(user).get().then(s=>{
+    if (s.exists) { err.textContent = tr('authUserExists'); throw '_handled'; }
     return fbAuth.createUserWithEmailAndPassword(email, pass);
   }).then(cred=>{
     const subEnd = new Date(); subEnd.setDate(subEnd.getDate()+30); // تجربة مجانية 30 يوم
     const profile = { biz, user, email, createdAt:new Date().toISOString(),
                       subEnd: subEnd.toISOString().split('T')[0], suspended:false };
     return fbDB.collection('accounts').doc(cred.user.uid).set(profile)
+      .then(()=>fbDB.collection('usernames').doc(user).set({ email, uid: cred.user.uid }))
       .then(()=>_sendVerify(cred.user))
       .then(()=>{
         document.getElementById('verify-email-show').textContent = email;
@@ -1071,11 +1072,11 @@ function login() {
   const err  = document.getElementById('auth-err');
   if (!id || !pass) { err.textContent = tr('authFillAll'); return; }
   err.textContent = '⏳ جارٍ الدخول...';
-  // يقبل الإيميل مباشرة، أو اسم المستخدم (يُبحث عن إيميله في السحابة)
+  // يقبل الإيميل مباشرة، أو اسم المستخدم (يُبحث عن إيميله في فهرس الأسماء)
   const getEmail = id.includes('@')
     ? Promise.resolve(id.toLowerCase())
-    : fbDB.collection('accounts').where('user','==',id).get()
-        .then(q=> q.empty ? Promise.reject({code:'user-not-found'}) : q.docs[0].data().email);
+    : fbDB.collection('usernames').doc(id).get()
+        .then(s=> s.exists ? s.data().email : Promise.reject({code:'user-not-found'}));
   getEmail
     .then(email=>fbAuth.signInWithEmailAndPassword(email, pass))
     .then(cred=>{
@@ -2508,13 +2509,8 @@ document.addEventListener('click', e => {
 // init
 applyLang();
 if (location.hash === '#admin') {
-  // مسار السوبر أدمن
-  showScreen('admin-screen');
-  if (sessionStorage.getItem('l7_admin_in')==='1') {
-    document.getElementById('admin-login-wrap').style.display='none';
-    document.getElementById('admin-panel-wrap').style.display='block';
-    adminLoadAccounts();
-  }
+  // لوحة السوبر أدمن انتقلت لصفحة مستقلة بدخول آمن عبر Firebase
+  location.href = 'admin.html';
 } else {
   showScreen('auth-screen');
   // فحص أن التخزين المحلي متاح (ضروري لعمل النظام) + تنظيف مفاتيح تشخيص قديمة
