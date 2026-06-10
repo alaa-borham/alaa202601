@@ -299,7 +299,8 @@ const fbDB   = firebase.firestore();
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('login');return false" style="font-size:.8rem;color:#888">← العودة للدخول</a></div>
     </div>
     <div style="font-size:.74rem;color:#999;text-align:center;margin-top:14px" data-i18n="authNote">كل حساب مستقل تماماً ببياناته: فواتير، عملاء، مستودع، إعدادات</div>
-    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v5</div>
+    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v6</div>
+    <div id="flight-log" style="font-size:.72rem;color:#1565c0;text-align:center;margin-top:4px;direction:rtl;word-break:break-word"></div>
   </div>
 </div>
 
@@ -1094,18 +1095,26 @@ function login() {
     .catch(e=>{ _flight('خطأ: '+_fbErrMsg(e)); err.textContent=_fbErrMsg(e); })
     .finally(()=>{ try { sessionStorage.removeItem('l7_login_busy'); } catch(_) {} });
 }
-// ── الصندوق الأسود
-let _flightOn = false;
+// ── الصندوق الأسود: يسجل كل خطوة ويعرضها مباشرة أسفل صندوق الدخول
 function _flightStart(){
-  _flightOn = true;
   try { localStorage.setItem('l7_flight', JSON.stringify({ t: Date.now(), steps: ['بدء'] })); } catch(_) {}
+  _flightRender();
 }
 function _flight(s){
-  if (!_flightOn) return;
   try {
-    const f = JSON.parse(localStorage.getItem('l7_flight')||'{"t":0,"steps":[]}');
+    const f = JSON.parse(localStorage.getItem('l7_flight')||'null');
+    if (!f) return;
     f.steps.push(s);
     localStorage.setItem('l7_flight', JSON.stringify(f));
+  } catch(_) {}
+  _flightRender();
+}
+function _flightRender(){
+  const el = document.getElementById('flight-log');
+  if (!el) return;
+  try {
+    const f = JSON.parse(localStorage.getItem('l7_flight')||'null');
+    el.textContent = f && f.steps.length ? '🔍 ' + f.steps.join(' ← ') : '';
   } catch(_) {}
 }
 
@@ -1126,7 +1135,7 @@ function _afterFirebaseLogin(user) {
       fbDB.collection('accounts').doc(user.uid).set(profile, {merge:true});
     }
     const subMsg = subscriptionBlockMsg(profile);
-    if (subMsg) { err.textContent = subMsg; fbAuth.signOut(); return; }
+    if (subMsg) { _flight('حظر: '+subMsg); err.textContent = subMsg; fbAuth.signOut(); return; }
     currentAccId = user.uid;
     currentAccProfile = profile;
     loadAccountData();
@@ -1147,10 +1156,12 @@ function _afterFirebaseLogin(user) {
 }
 
 function logout() {
+  _flight('استدعاء خروج!');
   cloudSaveNow();
   fbAuth.signOut().finally(()=>{
     currentAccId = null; currentAccProfile = null;
     showScreen('auth-screen');
+    _flightRender();
   });
 }
 // ═══════════════ SUPER ADMIN (إدارة الاشتراكات) — الوصول عبر #admin في الرابط
@@ -2532,13 +2543,11 @@ if (location.hash === '#admin') {
         document.getElementById('auth-err').textContent =
           '⚠ دخولك نجح وفُتحت اللوحة ثم أعاد متصفحك تحميل الصفحة! إضافة في المتصفح تسبب ذلك — افتح chrome://extensions وعطّل الإضافات كلها ثم جرب';
     }
-    // الصندوق الأسود: عرض خطوات آخر محاولة دخول إن أُعيد تحميل الصفحة خلالها
+    // الصندوق الأسود: عرض سجل آخر محاولة دخول بشكل دائم أسفل الصندوق
     const _fl = JSON.parse(localStorage.getItem('l7_flight')||'null');
     if (_fl && _fl.t) {
-      localStorage.removeItem('l7_flight');
-      if (Date.now()-_fl.t < 90000)
-        document.getElementById('auth-err').textContent =
-          '🔍 سجل آخر محاولة قبل إعادة التحميل: ' + _fl.steps.join(' ← ');
+      _flight('تحميل صفحة جديد');
+      _flightRender();
     }
     localStorage.setItem('l7_storage_test','1'); localStorage.removeItem('l7_storage_test');
   } catch(_) {
