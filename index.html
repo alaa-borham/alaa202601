@@ -299,6 +299,7 @@ const fbDB   = firebase.firestore();
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('login');return false" style="font-size:.8rem;color:#888">← العودة للدخول</a></div>
     </div>
     <div style="font-size:.74rem;color:#999;text-align:center;margin-top:14px" data-i18n="authNote">كل حساب مستقل تماماً ببياناته: فواتير، عملاء، مستودع، إعدادات</div>
+    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v3</div>
   </div>
 </div>
 
@@ -1066,6 +1067,8 @@ function login() {
   const err  = document.getElementById('auth-err');
   if (!id || !pass) { err.textContent = tr('authFillAll'); return; }
   err.textContent = '⏳ جارٍ الدخول...';
+  // علامة تشخيص: لو أُعيد تحميل الصفحة أثناء الدخول سنكتشف ذلك عند الإقلاع
+  try { sessionStorage.setItem('l7_login_busy', '1'); } catch(_) {}
   // يقبل الإيميل مباشرة، أو اسم المستخدم (يُبحث عن إيميله في السحابة)
   const getEmail = id.includes('@')
     ? Promise.resolve(id.toLowerCase())
@@ -1084,7 +1087,8 @@ function login() {
       }
       return _afterFirebaseLogin(cred.user);
     })
-    .catch(e=>err.textContent=_fbErrMsg(e));
+    .catch(e=>err.textContent=_fbErrMsg(e))
+    .finally(()=>{ try { sessionStorage.removeItem('l7_login_busy'); } catch(_) {} });
 }
 
 function subscriptionBlockMsg(acc) {
@@ -2492,6 +2496,18 @@ if (location.hash === '#admin') {
   }
 } else {
   showScreen('auth-screen');
+  // تشخيص: هل أُعيد تحميل الصفحة أثناء محاولة دخول سابقة؟ وهل التخزين يعمل؟
+  try {
+    if (sessionStorage.getItem('l7_login_busy') === '1') {
+      sessionStorage.removeItem('l7_login_busy');
+      document.getElementById('auth-err').textContent =
+        '⚠ أُعيد تحميل الصفحة أثناء الدخول! السبب غالباً إضافة في المتصفح — عطّل الإضافات (Tampermonkey ونحوها) وجرب مجدداً';
+    }
+    localStorage.setItem('l7_storage_test','1'); localStorage.removeItem('l7_storage_test');
+  } catch(_) {
+    document.getElementById('auth-err').textContent =
+      '⚠ متصفحك يمنع التخزين المحلي — فعّل ملفات تعريف الارتباط/التخزين لهذا الموقع';
+  }
   // استئناف الجلسة تلقائياً إن كان المستخدم داخلاً من قبل (Firebase يتذكره)
   let _booted = false;
   fbAuth.onAuthStateChanged(u=>{
