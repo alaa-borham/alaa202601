@@ -299,7 +299,7 @@ const fbDB   = firebase.firestore();
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('login');return false" style="font-size:.8rem;color:#888">← العودة للدخول</a></div>
     </div>
     <div style="font-size:.74rem;color:#999;text-align:center;margin-top:14px" data-i18n="authNote">كل حساب مستقل تماماً ببياناته: فواتير، عملاء، مستودع، إعدادات</div>
-    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v4</div>
+    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v5</div>
   </div>
 </div>
 
@@ -1067,6 +1067,8 @@ function login() {
   const err  = document.getElementById('auth-err');
   if (!id || !pass) { err.textContent = tr('authFillAll'); return; }
   err.textContent = '⏳ جارٍ الدخول...';
+  // الصندوق الأسود: تسجيل كل خطوة في تخزين دائم — يُعرض عند الإقلاع إن أُعيد تحميل الصفحة
+  _flightStart();
   // علامة تشخيص: لو أُعيد تحميل الصفحة أثناء الدخول سنكتشف ذلك عند الإقلاع
   try { sessionStorage.setItem('l7_login_busy', '1'); } catch(_) {}
   // يقبل الإيميل مباشرة، أو اسم المستخدم (يُبحث عن إيميله في السحابة)
@@ -1075,9 +1077,11 @@ function login() {
     : fbDB.collection('accounts').where('user','==',id).get()
         .then(q=> q.empty ? Promise.reject({code:'user-not-found'}) : q.docs[0].data().email);
   getEmail
-    .then(email=>fbAuth.signInWithEmailAndPassword(email, pass))
+    .then(email=>{ _flight('إيميل✓'); return fbAuth.signInWithEmailAndPassword(email, pass); })
     .then(cred=>{
+      _flight('دخول✓');
       if (!cred.user.emailVerified) {
+        _flight('غير مفعّل!');
         document.getElementById('verify-email-show').textContent = cred.user.email;
         document.getElementById('demo-code-box').innerHTML =
           '📬 حسابك غير مفعَّل — افتح رابط التفعيل المرسل لبريدك ثم اضغط الزر بالأسفل.';
@@ -1087,8 +1091,22 @@ function login() {
       }
       return _afterFirebaseLogin(cred.user);
     })
-    .catch(e=>err.textContent=_fbErrMsg(e))
+    .catch(e=>{ _flight('خطأ: '+_fbErrMsg(e)); err.textContent=_fbErrMsg(e); })
     .finally(()=>{ try { sessionStorage.removeItem('l7_login_busy'); } catch(_) {} });
+}
+// ── الصندوق الأسود
+let _flightOn = false;
+function _flightStart(){
+  _flightOn = true;
+  try { localStorage.setItem('l7_flight', JSON.stringify({ t: Date.now(), steps: ['بدء'] })); } catch(_) {}
+}
+function _flight(s){
+  if (!_flightOn) return;
+  try {
+    const f = JSON.parse(localStorage.getItem('l7_flight')||'{"t":0,"steps":[]}');
+    f.steps.push(s);
+    localStorage.setItem('l7_flight', JSON.stringify(f));
+  } catch(_) {}
 }
 
 function subscriptionBlockMsg(acc) {
@@ -1116,10 +1134,12 @@ function _afterFirebaseLogin(user) {
       settings.coName = profile.biz;
       localStorage.setItem(lsKey('appSettings'), JSON.stringify(settings));
     }
+    _flight('بيانات✓');
     applyCompanyInfo();
     document.getElementById('acc-name').textContent = '👤 '+profile.biz;
     err.textContent='';
     showScreen('dashboard');
+    _flight('لوحة✓');
     ['login-user','login-pass','reg-biz','reg-user','reg-pass','reg-email'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
     // علامة تشخيص: لو أُعيد تحميل الصفحة خلال ثوانٍ من دخول ناجح فسنكشف ذلك عند الإقلاع
     try { localStorage.setItem('l7_post_login', String(Date.now())); } catch(_) {}
@@ -2511,6 +2531,14 @@ if (location.hash === '#admin') {
       if (Date.now()-_pl < 20000)
         document.getElementById('auth-err').textContent =
           '⚠ دخولك نجح وفُتحت اللوحة ثم أعاد متصفحك تحميل الصفحة! إضافة في المتصفح تسبب ذلك — افتح chrome://extensions وعطّل الإضافات كلها ثم جرب';
+    }
+    // الصندوق الأسود: عرض خطوات آخر محاولة دخول إن أُعيد تحميل الصفحة خلالها
+    const _fl = JSON.parse(localStorage.getItem('l7_flight')||'null');
+    if (_fl && _fl.t) {
+      localStorage.removeItem('l7_flight');
+      if (Date.now()-_fl.t < 90000)
+        document.getElementById('auth-err').textContent =
+          '🔍 سجل آخر محاولة قبل إعادة التحميل: ' + _fl.steps.join(' ← ');
     }
     localStorage.setItem('l7_storage_test','1'); localStorage.removeItem('l7_storage_test');
   } catch(_) {
