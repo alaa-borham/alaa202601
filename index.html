@@ -230,7 +230,7 @@ body.ltr .lang-btn{left:auto;right:18px}
   body{background:white}
   #print-screen{background:white;padding:0}
   .pactions,.lang-btn,.top-bar{display:none}
-  .inv-print{box-shadow:none;width:100%;padding:8mm}
+  .inv-print{box-shadow:none;width:100%;padding:8mm;min-height:0}
 }
 @page{size:A4 portrait;margin:10mm}
 </style>
@@ -2081,6 +2081,20 @@ function fmtDate(dateStr) {
   }
   return dateStr; // manual date as-is
 }
+
+// ملاءمة الفاتورة في صفحة A4 واحدة: تصغير تلقائي إن زاد المحتوى عن ارتفاع الصفحة
+window.addEventListener('beforeprint', ()=>{
+  document.querySelectorAll('#print-screen .inv-print').forEach(el=>{
+    el.style.zoom = '';
+    const pxPerMM = 96/25.4;
+    const target = 277 * pxPerMM;        // ارتفاع A4 بعد خصم هوامش الطباعة 10مم
+    const est = el.scrollHeight * 1.12;  // الطباعة أضيق قليلاً من المعاينة فالمحتوى أطول
+    if (est > target) el.style.zoom = Math.max(0.4, target/est);
+  });
+});
+window.addEventListener('afterprint', ()=>{
+  document.querySelectorAll('#print-screen .inv-print').forEach(el=>el.style.zoom='');
+});
 
 function printInvoice(inv) {
   document.getElementById('p-date').textContent        = fmtDate(inv.date);
