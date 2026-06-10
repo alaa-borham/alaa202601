@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🛡️ سوبر أدمن - LEVEL7</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#eef2f7;direction:rtl}
+.auth-card{background:white;border-radius:18px;padding:28px;width:100%;max-width:390px;box-shadow:0 16px 48px rgba(0,0,0,.45);margin:16px}
+.auth-err{color:#c62828;font-size:.82rem;min-height:18px;margin-bottom:6px;text-align:center}
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:.81rem;color:#555;margin-bottom:3px;font-weight:600}
+.fg input{width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:7px;font-size:.87rem;font-family:inherit;background:#fafafa}
+.fg input:focus{outline:none;border-color:#5d9e3f;box-shadow:0 0 0 3px rgba(93,158,63,.1);background:white}
+.page-wrap{min-height:100vh;background:#eef2f7;padding:16px}
+.page-header{color:white;padding:13px 16px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.page-header h2{font-size:1.15rem}
+.btn{padding:7px 16px;border:none;border-radius:7px;cursor:pointer;font-size:.86rem;font-family:inherit;transition:opacity .15s,transform .1s}
+.btn:hover{opacity:.88;transform:translateY(-1px)}
+.btn-primary{background:#1565c0;color:white}.btn-success{background:#2e7d32;color:white}
+.btn-danger{background:#c62828;color:white}.btn-warning{background:#e65100;color:white}
+.btn-info{background:#00838f;color:white}
+.btn-outline{background:transparent;color:white;border:2px solid rgba(255,255,255,.7)}
+.btn-sm{padding:4px 10px;font-size:.77rem}
+.data-table-wrap{background:white;border-radius:10px;overflow:auto;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.data-table-wrap table{width:100%;border-collapse:collapse;min-width:700px}
+.data-table-wrap th{background:#5d9e3f;color:white;padding:10px;font-size:.84rem;white-space:nowrap}
+.data-table-wrap td{padding:8px 10px;border-bottom:1px solid #eee;font-size:.84rem;text-align:center;white-space:nowrap}
+.data-table-wrap tr:hover td{background:#f5faf0}
+.empty-state{text-align:center;padding:50px;color:#bbb}
+.empty-state .big{font-size:3rem}
+.an-card{background:white;border-radius:12px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.an-card h3{color:#2e7d32;font-size:.95rem;margin-bottom:12px;border-bottom:2px solid #e8f5e9;padding-bottom:8px}
+.an-stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.an-stat{background:white;border-radius:10px;padding:12px 16px;flex:1;min-width:130px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.08);border-top:3px solid #5d9e3f}
+.an-stat .v{font-size:1.4rem;font-weight:bold;color:#2e7d32}
+.an-stat .l{font-size:.75rem;color:#888;margin-top:2px}
+.an-stat.b{border-top-color:#1565c0}.an-stat.b .v{color:#1565c0}
+.an-stat.o{border-top-color:#e65100}.an-stat.o .v{color:#e65100}
+.an-stat.p{border-top-color:#6a1b9a}.an-stat.p .v{color:#6a1b9a}
+.pbadge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.77rem;font-weight:bold}
+.pay-cash{background:#e8f5e9;color:#2e7d32}.pay-ajal{background:#fff3e0;color:#e65100}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCLSc1yXa5F5E89RzUJoOsj2eErjXsQjus",
+  authDomain: "level7alaa.firebaseapp.com",
+  projectId: "level7alaa",
+  storageBucket: "level7alaa.firebasestorage.app",
+  messagingSenderId: "924441815217",
+  appId: "1:924441815217:web:f81b09e1cf0d0639fe9a90"
+});
+const fbDB = firebase.firestore();
+</script>
+</head>
+<body>
+
+<!-- ═══════════════ LOGIN -->
+<div id="admin-login-wrap" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e,#16213e)">
+  <div class="auth-card" style="max-width:360px">
+    <h3 style="text-align:center;color:#1a1a2e;margin-bottom:16px">🛡️ سوبر أدمن</h3>
+    <div class="auth-err" id="admin-err"></div>
+    <div class="fg"><label>اسم المستخدم</label><input type="text" id="admin-user"></div>
+    <div class="fg"><label>كلمة المرور</label><input type="password" id="admin-pass" onkeydown="if(event.key==='Enter')adminLogin()"></div>
+    <button class="btn" style="width:100%;padding:11px;background:#1a1a2e;color:white" onclick="adminLogin()">دخول →</button>
+    <div style="font-size:.72rem;color:#aaa;text-align:center;margin-top:10px">الافتراضي: admin / admin123 — غيّرها فور الدخول</div>
+  </div>
+</div>
+
+<!-- ═══════════════ PANEL -->
+<div id="admin-panel-wrap" style="display:none">
+  <div class="page-wrap">
+    <div class="page-header" style="background:linear-gradient(90deg,#1a1a2e,#16213e)">
+      <h2>🛡️ لوحة السوبر أدمن — إدارة الاشتراكات (سحابي ☁️)</h2>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-info" onclick="adminLoadAccounts()">🔄 تحديث</button>
+        <button class="btn btn-outline" onclick="adminChangePass()">🔑 تغيير كلمة المرور</button>
+        <button class="btn btn-danger" onclick="adminLogout()">🚪 خروج</button>
+      </div>
+    </div>
+    <div class="an-stat-row" id="admin-stats"></div>
+
+    <div class="an-card" style="margin-bottom:14px">
+      <h3>📧 خدمة الإيميل</h3>
+      <div style="font-size:.84rem;color:#555">
+        ✅ تأكيد الحسابات واستعادة كلمات المرور تتم تلقائياً عبر <b>Firebase</b> — رسائل حقيقية دون أي إعداد.
+      </div>
+    </div>
+
+    <div class="data-table-wrap">
+      <table>
+        <thead><tr>
+          <th>المنشأة</th><th>المستخدم</th><th>الإيميل</th><th>تاريخ التسجيل</th>
+          <th>نهاية الاشتراك</th><th>الحالة</th><th>إجراءات</th>
+        </tr></thead>
+        <tbody id="admin-tbody"></tbody>
+      </table>
+      <div id="admin-empty" class="empty-state" style="display:none"><div class="big">🏢</div><p>لا توجد منشآت مسجلة بعد.</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let accounts = [];
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtDate(dateStr){
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){ const d=new Date(dateStr); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
+  return dateStr;
+}
+
+// ─── دخول السوبر أدمن: كلمة المرور تُخزن في السحابة (config/super) لتعمل من أي جهاز
+const DEFAULT_SUPER = { user:'admin', pass:'admin123' };
+function getSuperCloud(){
+  return fbDB.collection('config').doc('super').get()
+    .then(s=> s.exists ? s.data() : DEFAULT_SUPER)
+    .catch(()=>DEFAULT_SUPER);
+}
+function adminLogin(){
+  const u = document.getElementById('admin-user').value.trim();
+  const pw = document.getElementById('admin-pass').value;
+  const err = document.getElementById('admin-err');
+  err.textContent='⏳ جارٍ التحقق...';
+  getSuperCloud().then(sa=>{
+    if (u!==sa.user || pw!==sa.pass){ err.textContent='بيانات الدخول غير صحيحة'; return; }
+    sessionStorage.setItem('l7_admin_in','1');
+    document.getElementById('admin-login-wrap').style.display='none';
+    document.getElementById('admin-panel-wrap').style.display='block';
+    adminLoadAccounts();
+  });
+}
+function adminLogout(){ sessionStorage.removeItem('l7_admin_in'); location.reload(); }
+function adminChangePass(){
+  const np = prompt('كلمة المرور الجديدة للسوبر أدمن:');
+  if (!np || np.length<5){ if(np!==null) alert('5 أحرف على الأقل'); return; }
+  getSuperCloud().then(sa=>{
+    return fbDB.collection('config').doc('super').set({ user:sa.user, pass:np });
+  }).then(()=>alert('تم التغيير ✔')).catch(e=>alert('فشل: '+(e.message||'')));
+}
+
+// ─── جلب وإدارة المنشآت من Firestore
+function adminLoadAccounts(){
+  fbDB.collection('accounts').get().then(q=>{
+    accounts = q.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderAdminPanel();
+  }).catch(e=>{
+    document.getElementById('admin-tbody').innerHTML =
+      '<tr><td colspan="7" style="color:#c62828">تعذر جلب البيانات: '+escHtml(e.message||'')+'</td></tr>';
+  });
+}
+function renderAdminPanel(){
+  const tb = document.getElementById('admin-tbody');
+  const today = new Date();
+  const active = accounts.filter(a=>!a.suspended && (!a.subEnd || new Date(a.subEnd+'T23:59:59')>=today)).length;
+  const expired = accounts.filter(a=>a.subEnd && new Date(a.subEnd+'T23:59:59')<today).length;
+  document.getElementById('admin-stats').innerHTML = `
+    <div class="an-stat"><div class="v">${accounts.length}</div><div class="l">إجمالي المنشآت</div></div>
+    <div class="an-stat b"><div class="v">${active}</div><div class="l">اشتراكات نشطة</div></div>
+    <div class="an-stat o"><div class="v">${expired}</div><div class="l">اشتراكات منتهية</div></div>
+    <div class="an-stat p"><div class="v">${accounts.filter(a=>a.suspended).length}</div><div class="l">موقوفة</div></div>`;
+  document.getElementById('admin-empty').style.display = accounts.length?'none':'block';
+  tb.innerHTML = accounts.map(a=>{
+    const exp = a.subEnd && new Date(a.subEnd+'T23:59:59') < today;
+    const st = a.suspended ? '<span class="pbadge" style="background:#ffebee;color:#c62828">موقوف</span>'
+             : exp ? '<span class="pbadge pay-ajal">منتهي</span>'
+             : '<span class="pbadge pay-cash">نشط</span>';
+    const created = a.createdAt ? fmtDate(a.createdAt.split('T')[0]) : '-';
+    return `<tr>
+      <td><strong>${escHtml(a.biz)}</strong></td>
+      <td>${escHtml(a.user)}</td>
+      <td style="direction:ltr">${escHtml(a.email||'-')}</td>
+      <td>${created}</td>
+      <td><input type="date" value="${a.subEnd||''}" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit"></td>
+      <td>${st}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-success btn-sm" onclick="adminExtend('${a.id}',30)">+30ي</button>
+        <button class="btn btn-primary btn-sm" onclick="adminExtend('${a.id}',90)">+90ي</button>
+        <button class="btn btn-info btn-sm" onclick="adminExtend('${a.id}',365)">+سنة</button>
+        <button class="btn btn-warning btn-sm" onclick="adminToggleSuspend('${a.id}')">${a.suspended?'تفعيل':'إيقاف'}</button>
+        <button class="btn btn-danger btn-sm" onclick="adminDeleteAcc('${a.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+function _adminUpdate(id, fields){
+  fbDB.collection('accounts').doc(id).set(fields, {merge:true})
+    .then(()=>{ const a=accounts.find(x=>x.id===id); if(a) Object.assign(a, fields); renderAdminPanel(); })
+    .catch(e=>alert('فشل الحفظ: '+(e.message||'')));
+}
+function adminSetSubEnd(id, val){ _adminUpdate(id, { subEnd: val||null }); }
+function adminExtend(id, days){
+  const a=accounts.find(x=>x.id===id); if(!a) return;
+  const base = (a.subEnd && new Date(a.subEnd) > new Date()) ? new Date(a.subEnd) : new Date();
+  base.setDate(base.getDate()+days);
+  _adminUpdate(id, { subEnd: base.toISOString().split('T')[0] });
+}
+function adminToggleSuspend(id){ const a=accounts.find(x=>x.id===id); if(a) _adminUpdate(id, { suspended: !a.suspended }); }
+function adminDeleteAcc(id){
+  const a=accounts.find(x=>x.id===id); if(!a) return;
+  if (!confirm('حذف منشأة "'+a.biz+'" وجميع بياناتها نهائياً؟')) return;
+  if (!confirm('تأكيد أخير — لا يمكن التراجع!')) return;
+  fbDB.collection('accounts').doc(id).delete()
+    .then(()=>{ accounts = accounts.filter(x=>x.id!==id); renderAdminPanel(); })
+    .catch(e=>alert('فشل الحذف: '+(e.message||'')));
+}
+
+// init — استئناف الجلسة
+if (sessionStorage.getItem('l7_admin_in')==='1'){
+  document.getElementById('admin-login-wrap').style.display='none';
+  document.getElementById('admin-panel-wrap').style.display='block';
+  adminLoadAccounts();
+}
+</script>
+</body>
+</html>
