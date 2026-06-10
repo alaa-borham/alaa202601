@@ -977,7 +977,7 @@ function registerAccount() {
     const profile = { biz, user, email, createdAt:new Date().toISOString(),
                       subEnd: subEnd.toISOString().split('T')[0], suspended:false };
     return fbDB.collection('accounts').doc(cred.user.uid).set(profile)
-      .then(()=>cred.user.sendEmailVerification())
+      .then(()=>_sendVerify(cred.user))
       .then(()=>{
         document.getElementById('verify-email-show').textContent = email;
         document.getElementById('demo-code-box').innerHTML =
@@ -993,22 +993,34 @@ function registerAccount() {
 function confirmVerifyCode() {
   const u = fbAuth.currentUser;
   const err = document.getElementById('auth-err');
-  if (!u) { showAuthTab('login'); return; }
+  if (!u) {
+    showAuthTab('login');
+    document.getElementById('tab-login').classList.add('active');
+    err.textContent = 'انتهت الجلسة — سجّل الدخول بحسابك لإكمال التفعيل';
+    return;
+  }
   err.textContent = '⏳ جارٍ التحقق...';
   u.reload().then(()=>{
-    if (!fbAuth.currentUser.emailVerified) {
+    const cu = fbAuth.currentUser;
+    if (!cu.emailVerified) {
       err.textContent = 'لم يُفعَّل بعد — افتح رابط التفعيل في بريدك أولاً';
       return;
     }
-    _afterFirebaseLogin(fbAuth.currentUser);
+    // تجديد رمز الجلسة حتى تعرف Firestore أن البريد أصبح مفعّلاً
+    return cu.getIdToken(true).then(()=>_afterFirebaseLogin(cu));
   }).catch(e=>err.textContent=_fbErrMsg(e));
 }
 function resendCode() {
   const u = fbAuth.currentUser;
-  if (!u) { showAuthTab('login'); return; }
-  u.sendEmailVerification()
+  if (!u) { showAuthTab('login'); document.getElementById('tab-login').classList.add('active'); return; }
+  _sendVerify(u)
     .then(()=>{ document.getElementById('demo-code-box').innerHTML='✅ أُعيد إرسال رابط التفعيل إلى بريدك'; })
     .catch(e=>{ document.getElementById('auth-err').textContent=_fbErrMsg(e); });
+}
+// إرسال رابط التفعيل مع رابط عودة للموقع — وإن رُفض النطاق يُرسل بدون رابط عودة
+function _sendVerify(u) {
+  return u.sendEmailVerification({ url: location.origin + location.pathname })
+          .catch(()=>u.sendEmailVerification());
 }
 
 // ── استعادة كلمة المرور: Firebase يرسل رابط إعادة تعيين حقيقي للإيميل
@@ -2453,7 +2465,14 @@ if (location.hash === '#admin') {
   fbAuth.onAuthStateChanged(u=>{
     if (_booted) return;
     _booted = true;
-    if (u && u.emailVerified) _afterFirebaseLogin(u);
+    if (!u) return;
+    if (u.emailVerified) { _afterFirebaseLogin(u).catch(e=>console.warn('auto login failed', e)); return; }
+    // الحالة المحفوظة قد تكون قديمة (فعّل بريده بعد آخر زيارة) — حدّثها من الخادم
+    u.reload().then(()=>{
+      const cu = fbAuth.currentUser;
+      if (cu && cu.emailVerified)
+        return cu.getIdToken(true).then(()=>_afterFirebaseLogin(cu));
+    }).catch(()=>{});
   });
 }
 window.addEventListener('hashchange', ()=>location.reload());
