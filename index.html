@@ -226,11 +226,13 @@ body.ltr .lang-btn{left:auto;right:18px}
 .stmt-row.inv-row{background:#f9fff5}.stmt-row.pay-row{background:#fff9e6}.stmt-row.ret-row{background:#fdf2f8}
 .stmt-row .dr{color:#c62828;font-weight:600}.stmt-row .cr{color:#2e7d32;font-weight:600}
 .balance-positive{color:#2e7d32;font-weight:bold}.balance-negative{color:#c62828;font-weight:bold}
+#print-datetime{text-align:center;font-size:.72rem;color:#999;margin-top:16px}
 @media print{
   body{background:white}
   #print-screen{background:white;padding:0}
   .pactions,.lang-btn,.top-bar{display:none}
-  .inv-print{box-shadow:none;width:100%;padding:8mm;min-height:0}
+  .inv-print{box-shadow:none;width:100%;padding:16mm 8mm 8mm;min-height:0}
+  #print-datetime{position:fixed;bottom:0;left:0;right:0;margin:0}
 }
 @page{size:A4 portrait;margin:10mm}
 </style>
@@ -668,6 +670,7 @@ const fbDB   = firebase.firestore();
       <div style="max-width:245px">
         <div class="gw"><span class="gl">الإجمالي</span><span class="gv" id="p-grand"></span></div>
       </div>
+      <div id="print-datetime"></div>
     </div>
   </div>
 </div>
@@ -2084,10 +2087,13 @@ function fmtDate(dateStr) {
 
 // ملاءمة الفاتورة في صفحة A4 واحدة: تصغير تلقائي إن زاد المحتوى عن ارتفاع الصفحة
 window.addEventListener('beforeprint', ()=>{
+  const dt = document.getElementById('print-datetime');
+  if (dt) dt.textContent = 'تاريخ الطباعة: ' + new Date().toLocaleString('en-GB',
+    { day:'numeric', month:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
   document.querySelectorAll('#print-screen .inv-print').forEach(el=>{
     el.style.zoom = '';
     const pxPerMM = 96/25.4;
-    const target = 277 * pxPerMM;        // ارتفاع A4 بعد خصم هوامش الطباعة 10مم
+    const target = 270 * pxPerMM;        // ارتفاع A4 بعد الهوامش ومساحة سطر التاريخ السفلي
     const est = el.scrollHeight * 1.12;  // الطباعة أضيق قليلاً من المعاينة فالمحتوى أطول
     if (est > target) el.style.zoom = Math.max(0.4, target/est);
   });
