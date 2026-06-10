@@ -921,6 +921,18 @@ function loadAccountData() {
 }
 
 // ═══════════════ AUTH
+// أي خطأ غير متوقع في الصفحة يظهر للمستخدم بدل الفشل الصامت
+window.addEventListener('error', e => {
+  const el = document.getElementById('auth-err');
+  if (el && document.getElementById('auth-screen').classList.contains('active'))
+    el.textContent = '⚠ خطأ تقني: ' + (e.message || 'غير معروف');
+});
+window.addEventListener('unhandledrejection', e => {
+  const el = document.getElementById('auth-err');
+  const m = e.reason && (e.reason.message || e.reason.code) || String(e.reason || '');
+  if (el && document.getElementById('auth-screen').classList.contains('active'))
+    el.textContent = '⚠ خطأ تقني: ' + m;
+});
 function togglePwd(btn) {
   const inp = btn.parentElement.querySelector('input');
   const show = inp.type === 'password';
@@ -1102,9 +1114,9 @@ function _afterFirebaseLogin(user) {
     }
     applyCompanyInfo();
     document.getElementById('acc-name').textContent = '👤 '+profile.biz;
-    ['login-user','login-pass','reg-biz','reg-user','reg-pass','reg-email'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
     err.textContent='';
     showScreen('dashboard');
+    ['login-user','login-pass','reg-biz','reg-user','reg-pass','reg-email'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
   });
 }
 
