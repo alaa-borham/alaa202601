@@ -229,7 +229,21 @@ body.ltr .lang-btn{left:auto;right:18px}
 }
 @page{size:A4 portrait;margin:10mm}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCLSc1yXa5F5E89RzUJoOsj2eErjXsQjus",
+  authDomain: "level7alaa.firebaseapp.com",
+  projectId: "level7alaa",
+  storageBucket: "level7alaa.firebasestorage.app",
+  messagingSenderId: "924441815217",
+  appId: "1:924441815217:web:f81b09e1cf0d0639fe9a90"
+});
+const fbAuth = firebase.auth();
+const fbDB   = firebase.firestore();
+</script>
 </head>
 <body>
 
@@ -262,9 +276,8 @@ body.ltr .lang-btn{left:auto;right:18px}
     <div id="auth-verify-form" style="display:none">
       <div style="text-align:center;font-size:.9rem;color:#555;margin-bottom:10px">📧 أدخل رمز التأكيد المرسل إلى<br><b id="verify-email-show" style="color:#1565c0"></b></div>
       <div id="demo-code-box" style="background:#fff8e1;border:1.5px dashed #f9a825;border-radius:8px;padding:10px;text-align:center;margin-bottom:10px;font-size:.8rem;color:#795548"></div>
-      <div class="fg"><label>رمز التأكيد</label><input type="text" id="verify-code" maxlength="6" style="text-align:center;font-size:1.3rem;letter-spacing:8px" placeholder="000000"></div>
-      <button class="btn btn-success" style="width:100%;padding:11px" onclick="confirmVerifyCode()">تأكيد الحساب ✔</button>
-      <div style="text-align:center;margin-top:10px"><a href="#" onclick="resendCode();return false" style="font-size:.8rem;color:#1565c0">إعادة إرسال الرمز</a></div>
+      <button class="btn btn-success" style="width:100%;padding:11px" onclick="confirmVerifyCode()">✅ ضغطت رابط التفعيل — دخول</button>
+      <div style="text-align:center;margin-top:10px"><a href="#" onclick="resendCode();return false" style="font-size:.8rem;color:#1565c0">إعادة إرسال رابط التفعيل</a></div>
     </div>
     <!-- forgot / reset password -->
     <div id="auth-forgot-form" style="display:none">
@@ -311,21 +324,10 @@ body.ltr .lang-btn{left:auto;right:18px}
       <div class="an-stat-row" id="admin-stats"></div>
 
       <div class="an-card" style="margin-bottom:14px">
-        <h3>📧 إعدادات خدمة الإيميل (EmailJS)</h3>
-        <div style="font-size:.8rem;color:#777;margin-bottom:12px">
-          أنشئ حساباً مجانياً في <b>emailjs.com</b> ← أضف خدمة بريد (Gmail/Outlook) ← أنشئ قالباً (Template) يحتوي المتغيرات:
-          <code style="background:#f5f5f5;padding:2px 6px;border-radius:4px">{{to_email}} {{to_name}} {{code}} {{biz}}</code>
-          ثم الصق المفاتيح هنا. بدون إعداد، يعمل النظام بالوضع التجريبي (الرمز يظهر على الشاشة).
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
-          <div class="fg"><label>Public Key</label><input type="text" id="ej-public" style="direction:ltr" placeholder="XxXxXxXxXxXxXxX"></div>
-          <div class="fg"><label>Service ID</label><input type="text" id="ej-service" style="direction:ltr" placeholder="service_xxxxxx"></div>
-          <div class="fg"><label>Template ID</label><input type="text" id="ej-template" style="direction:ltr" placeholder="template_xxxxxx"></div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-success" onclick="saveEmailCfg()">✔ حفظ الإعدادات</button>
-          <button class="btn btn-primary" onclick="testEmailCfg()">📨 إرسال رسالة تجريبية</button>
-          <span id="ej-status" style="font-size:.82rem"></span>
+        <h3>📧 خدمة الإيميل</h3>
+        <div style="font-size:.84rem;color:#555">
+          ✅ تأكيد الحسابات واستعادة كلمات المرور تتم تلقائياً عبر <b>Firebase</b> —
+          تصل رسائل حقيقية لبريد كل مشترك دون أي إعداد إضافي.
         </div>
       </div>
 
@@ -851,13 +853,46 @@ body.ltr .lang-btn{left:auto;right:18px}
 </div>
 
 <script>
-// ═══════════════ MULTI-TENANT ACCOUNTS (SaaS-style: each account fully isolated)
-let accounts     = JSON.parse(localStorage.getItem('l7_accounts') || '[]');
-let currentAccId = localStorage.getItem('currentAccId') || null;
+// ═══════════════ MULTI-TENANT ACCOUNTS (SaaS — Firebase Auth + Firestore)
+let accounts     = [];   // يُحمَّل من Firestore في لوحة الأدمن فقط
+let currentAccId = null; // = Firebase UID بعد الدخول
+let currentAccProfile = null;
 function lsKey(k)      { return 'acc_'+currentAccId+'_'+k; }
 function lsGet(k, def) { const v = localStorage.getItem(lsKey(k)); return v===null ? def : v; }
-function lsSet(k, v)   { localStorage.setItem(lsKey(k), v); }
-function lsDel(k)      { localStorage.removeItem(lsKey(k)); }
+function lsSet(k, v)   { localStorage.setItem(lsKey(k), v); scheduleCloudSave(); }
+function lsDel(k)      { localStorage.removeItem(lsKey(k)); scheduleCloudSave(); }
+
+// ── مزامنة سحابية: كل بيانات المنشأة تُحفظ في Firestore وتُستعاد من أي جهاز
+const CLOUD_KEYS = ['invoices','deletedInvoices','customers','products','payments',
+                    'nextInvNum','nextProdSeq','appSettings','logoImg','bgImg',
+                    'logoWidth','bgWidth','bgOpacity'];
+let _cloudTimer = null;
+function scheduleCloudSave() {
+  if (!currentAccId) return;
+  clearTimeout(_cloudTimer);
+  _cloudTimer = setTimeout(cloudSaveNow, 1200);
+}
+function cloudSaveNow() {
+  if (!currentAccId) return;
+  const data = {};
+  CLOUD_KEYS.forEach(k=>{
+    const v = localStorage.getItem(lsKey(k));
+    // حد مستند Firestore هو 1MB — تُتخطى الصور الضخمة جداً
+    if (v!==null && v.length < 600000) data[k] = v;
+  });
+  fbDB.collection('accounts').doc(currentAccId)
+     .set({ data, updatedAt: new Date().toISOString() }, { merge:true })
+     .catch(e=>console.warn('cloud save failed', e));
+}
+function cloudLoad(uid) {
+  return fbDB.collection('accounts').doc(uid).get().then(snap=>{
+    const d = snap.exists ? (snap.data().data||{}) : {};
+    CLOUD_KEYS.forEach(k=>{
+      if (d[k]!==undefined) localStorage.setItem('acc_'+uid+'_'+k, d[k]);
+    });
+    return snap.exists ? snap.data() : null;
+  });
+}
 
 // ═══════════════ STATE (loaded per account)
 let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[];
@@ -896,48 +931,6 @@ let pendingVerifyId = null;
 function genCode() { return String(Math.floor(100000+Math.random()*900000)); }
 
 // ═══════════════ EMAIL SERVICE (EmailJS) — إرسال حقيقي إذا تم الإعداد، وإلا وضع تجريبي
-function getEmailCfg() { return JSON.parse(localStorage.getItem('l7_emailjs')||'null'); }
-function emailConfigured() { const c=getEmailCfg(); return !!(c && c.publicKey && c.serviceId && c.templateId && window.emailjs); }
-
-function sendEmailCode(acc, code, boxId) {
-  const box = document.getElementById(boxId);
-  if (emailConfigured()) {
-    const cfg = getEmailCfg();
-    box.innerHTML = '⏳ جارٍ إرسال الرمز إلى <b style="color:#1565c0">'+escHtml(acc.email)+'</b> ...';
-    emailjs.send(cfg.serviceId, cfg.templateId, {
-      to_email: acc.email, to_name: acc.user, code: code, biz: acc.biz||'',
-    }, { publicKey: cfg.publicKey })
-    .then(()=>{ box.innerHTML = '✅ تم إرسال الرمز إلى <b style="color:#2e7d32">'+escHtml(acc.email)+'</b> — تحقق من بريدك (وملف Spam)'; })
-    .catch(err=>{
-      box.innerHTML = '⚠️ فشل الإرسال ('+escHtml(err?.text||err?.message||'خطأ')+')<br>🧪 رمزك للطوارئ: <b style="font-size:1.2rem;color:#e65100;letter-spacing:3px">'+code+'</b>';
-    });
-  } else {
-    box.innerHTML =
-      '🧪 <b>وضع تجريبي (خدمة الإيميل غير مفعّلة):</b><br>رمزك هو <b style="font-size:1.2rem;color:#e65100;letter-spacing:3px">'+code+'</b><br>فعّل EmailJS من لوحة السوبر أدمن ليصل الرمز إلى '+escHtml(acc.email);
-  }
-}
-
-function saveEmailCfg() {
-  const cfg = {
-    publicKey:  document.getElementById('ej-public').value.trim(),
-    serviceId:  document.getElementById('ej-service').value.trim(),
-    templateId: document.getElementById('ej-template').value.trim(),
-  };
-  localStorage.setItem('l7_emailjs', JSON.stringify(cfg));
-  document.getElementById('ej-status').innerHTML = '<span style="color:#2e7d32">✔ تم الحفظ'+(emailConfigured()?' — الخدمة مفعّلة':' — الإعداد ناقص (وضع تجريبي)')+'</span>';
-}
-function testEmailCfg() {
-  const st = document.getElementById('ej-status');
-  if (!emailConfigured()) { st.innerHTML='<span style="color:#c62828">أكمل المفاتيح الثلاثة واحفظ أولاً</span>'; return; }
-  const to = prompt('أرسل رسالة تجريبية إلى أي إيميل:');
-  if (!to) return;
-  st.textContent='⏳ جارٍ الإرسال...';
-  const cfg = getEmailCfg();
-  emailjs.send(cfg.serviceId, cfg.templateId, { to_email:to, to_name:'Test', code:'123456', biz:'LEVEL7 Test' }, { publicKey:cfg.publicKey })
-    .then(()=>{ st.innerHTML='<span style="color:#2e7d32">✅ وصلت! الخدمة تعمل بنجاح</span>'; })
-    .catch(err=>{ st.innerHTML='<span style="color:#c62828">❌ فشل: '+escHtml(err?.text||err?.message||'')+'</span>'; });
-}
-
 // اقتراح نطاقات الإيميل الشائعة أثناء الكتابة
 const EMAIL_DOMAINS = ['gmail.com','outlook.com','hotmail.com','yahoo.com','icloud.com','live.com','msn.com','protonmail.com'];
 function suggestEmail(input) {
@@ -953,6 +946,18 @@ function suggestEmail(input) {
     .map(d => `<option value="${local}@${d}">`).join('');
 }
 
+function _fbErrMsg(e) {
+  const c = e && e.code || '';
+  if (c.includes('email-already-in-use')) return 'هذا الإيميل مسجل مسبقاً';
+  if (c.includes('invalid-email'))        return 'صيغة الإيميل غير صحيحة';
+  if (c.includes('weak-password'))        return 'كلمة المرور ضعيفة (6 أحرف على الأقل)';
+  if (c.includes('user-not-found') || c.includes('wrong-password') || c.includes('invalid-credential'))
+    return tr('authBadLogin');
+  if (c.includes('too-many-requests'))    return 'محاولات كثيرة — انتظر قليلاً ثم أعد المحاولة';
+  if (c.includes('network'))              return 'تعذر الاتصال — تحقق من الإنترنت';
+  return 'خطأ: '+(e && (e.message||c) || 'غير معروف');
+}
+
 function registerAccount() {
   const biz   = document.getElementById('reg-biz').value.trim();
   const email = document.getElementById('reg-email').value.trim().toLowerCase();
@@ -961,104 +966,91 @@ function registerAccount() {
   const err   = document.getElementById('auth-err');
   if (!biz||!user||!pass||!email) { err.textContent = tr('authFillAll'); return; }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = 'صيغة الإيميل غير صحيحة'; return; }
-  if (accounts.find(a=>a.user.toLowerCase()===user.toLowerCase())) { err.textContent = tr('authUserExists'); return; }
-  if (accounts.find(a=>(a.email||'').toLowerCase()===email)) { err.textContent = 'هذا الإيميل مسجل مسبقاً'; return; }
-  const subEnd = new Date(); subEnd.setDate(subEnd.getDate()+30); // تجربة مجانية 30 يوم
-  const acc = { id:Date.now(), biz, user, pass, email, verified:false, verifyCode:genCode(),
-                createdAt:new Date().toISOString(), subEnd:subEnd.toISOString().split('T')[0], suspended:false };
-  accounts.push(acc);
-  localStorage.setItem('l7_accounts', JSON.stringify(accounts));
-  // خطوة تأكيد الإيميل قبل الدخول
-  pendingVerifyId = acc.id;
-  document.getElementById('verify-email-show').textContent = acc.email;
-  sendEmailCode(acc, acc.verifyCode, 'demo-code-box');
-  document.getElementById('tab-login').classList.remove('active');
-  document.getElementById('tab-register').classList.remove('active');
-  showAuthTab('verify');
-  return;
+  if (pass.length<6) { err.textContent = 'كلمة المرور 6 أحرف على الأقل'; return; }
+  err.textContent = '⏳ جارٍ إنشاء الحساب...';
+  // التأكد من عدم تكرار اسم المستخدم
+  fbDB.collection('accounts').where('user','==',user).get().then(q=>{
+    if (!q.empty) { err.textContent = tr('authUserExists'); throw '_handled'; }
+    return fbAuth.createUserWithEmailAndPassword(email, pass);
+  }).then(cred=>{
+    const subEnd = new Date(); subEnd.setDate(subEnd.getDate()+30); // تجربة مجانية 30 يوم
+    const profile = { biz, user, email, createdAt:new Date().toISOString(),
+                      subEnd: subEnd.toISOString().split('T')[0], suspended:false };
+    return fbDB.collection('accounts').doc(cred.user.uid).set(profile)
+      .then(()=>cred.user.sendEmailVerification())
+      .then(()=>{
+        document.getElementById('verify-email-show').textContent = email;
+        document.getElementById('demo-code-box').innerHTML =
+          '📬 أرسلنا <b>رابط تفعيل</b> إلى بريدك.<br>افتح الرسالة (تحقق من Spam أيضاً) واضغط الرابط،<br>ثم ارجع هنا واضغط الزر بالأسفل.';
+        document.getElementById('tab-login').classList.remove('active');
+        document.getElementById('tab-register').classList.remove('active');
+        showAuthTab('verify');
+      });
+  }).catch(e=>{ if (e!=='_handled') err.textContent = _fbErrMsg(e); });
 }
 
+// زر "تأكيد الحساب": يتحقق أن المستخدم ضغط رابط التفعيل في بريده
 function confirmVerifyCode() {
-  const acc = accounts.find(a=>a.id===pendingVerifyId);
-  const code = document.getElementById('verify-code').value.trim();
-  if (!acc) { showAuthTab('login'); return; }
-  if (code !== acc.verifyCode) { document.getElementById('auth-err').textContent='الرمز غير صحيح'; return; }
-  acc.verified = true; delete acc.verifyCode;
-  localStorage.setItem('l7_accounts', JSON.stringify(accounts));
-  document.getElementById('verify-code').value='';
-  _enterAccount(acc);
-  _maybeMigrateLegacy(acc);
-  settings.coName = acc.biz;
-  lsSet('appSettings', JSON.stringify(settings));
-  applyCompanyInfo();
+  const u = fbAuth.currentUser;
+  const err = document.getElementById('auth-err');
+  if (!u) { showAuthTab('login'); return; }
+  err.textContent = '⏳ جارٍ التحقق...';
+  u.reload().then(()=>{
+    if (!fbAuth.currentUser.emailVerified) {
+      err.textContent = 'لم يُفعَّل بعد — افتح رابط التفعيل في بريدك أولاً';
+      return;
+    }
+    _afterFirebaseLogin(fbAuth.currentUser);
+  }).catch(e=>err.textContent=_fbErrMsg(e));
 }
 function resendCode() {
-  const acc = accounts.find(a=>a.id===pendingVerifyId);
-  if (!acc) return;
-  acc.verifyCode = genCode();
-  localStorage.setItem('l7_accounts', JSON.stringify(accounts));
-  sendEmailCode(acc, acc.verifyCode, 'demo-code-box');
+  const u = fbAuth.currentUser;
+  if (!u) { showAuthTab('login'); return; }
+  u.sendEmailVerification()
+    .then(()=>{ document.getElementById('demo-code-box').innerHTML='✅ أُعيد إرسال رابط التفعيل إلى بريدك'; })
+    .catch(e=>{ document.getElementById('auth-err').textContent=_fbErrMsg(e); });
 }
 
-// ── استعادة كلمة المرور عبر الإيميل
-let resetAccId = null;
+// ── استعادة كلمة المرور: Firebase يرسل رابط إعادة تعيين حقيقي للإيميل
 function sendResetCode() {
   const email = document.getElementById('forgot-email').value.trim().toLowerCase();
-  const acc = accounts.find(a=>(a.email||'').toLowerCase()===email);
-  if (!acc) { document.getElementById('auth-err').textContent='لا يوجد حساب بهذا الإيميل'; return; }
-  resetAccId = acc.id;
-  acc.resetCode = genCode();
-  localStorage.setItem('l7_accounts', JSON.stringify(accounts));
-  sendEmailCode(acc, acc.resetCode, 'demo-reset-box');
-  document.getElementById('forgot-step1').style.display='none';
-  document.getElementById('forgot-step2').style.display='block';
-  document.getElementById('auth-err').textContent='';
-}
-function confirmResetPassword() {
-  const acc = accounts.find(a=>a.id===resetAccId);
-  const code = document.getElementById('reset-code').value.trim();
-  const np   = document.getElementById('reset-pass').value;
-  if (!acc) { showAuthTab('login'); return; }
-  if (code !== acc.resetCode) { document.getElementById('auth-err').textContent='الرمز غير صحيح'; return; }
-  if (!np || np.length<4) { document.getElementById('auth-err').textContent='كلمة المرور قصيرة (4 أحرف على الأقل)'; return; }
-  acc.pass = np; delete acc.resetCode;
-  localStorage.setItem('l7_accounts', JSON.stringify(accounts));
-  ['forgot-email','reset-code','reset-pass'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('forgot-step1').style.display='block';
-  document.getElementById('forgot-step2').style.display='none';
-  alert('تم تغيير كلمة المرور ✔ — سجّل الدخول الآن');
-  showAuthTab('login');
-  document.getElementById('tab-login').classList.add('active');
-}
-
-function _maybeMigrateLegacy(acc) {
-  // ترحيل البيانات القديمة (قبل نظام الحسابات) إلى أول حساب يتم إنشاؤه
-  if (accounts.length===1 && localStorage.getItem('invoices')) {
-    ['invoices','deletedInvoices','customers','products','payments','nextInvNum','nextProdSeq','appSettings','logoImg','bgImg','logoWidth','bgWidth','bgOpacity'].forEach(k=>{
-      const v = localStorage.getItem(k);
-      if (v!==null) { lsSet(k, v); localStorage.removeItem(k); }
-    });
-    loadAccountData();
-    renderDashStats();
-  }
-}
-function login() {
-  const user = document.getElementById('login-user').value.trim().toLowerCase();
-  const pass = document.getElementById('login-pass').value;
-  const acc = accounts.find(a=>(a.user.toLowerCase()===user || (a.email||'').toLowerCase()===user) && a.pass===pass);
   const err = document.getElementById('auth-err');
-  if (!acc) { err.textContent = tr('authBadLogin'); return; }
-  if (acc.verified===false) {
-    pendingVerifyId = acc.id;
-    if (!acc.verifyCode) { acc.verifyCode = genCode(); localStorage.setItem('l7_accounts', JSON.stringify(accounts)); }
-    document.getElementById('verify-email-show').textContent = acc.email||'';
-    sendEmailCode(acc, acc.verifyCode, 'demo-code-box');
-    showAuthTab('verify');
-    return;
-  }
-  const subMsg = subscriptionBlockMsg(acc);
-  if (subMsg) { err.textContent = subMsg; return; }
-  _enterAccount(acc);
+  if (!email) { err.textContent='أدخل الإيميل'; return; }
+  err.textContent='⏳ جارٍ الإرسال...';
+  fbAuth.sendPasswordResetEmail(email).then(()=>{
+    err.textContent='';
+    alert('📬 أرسلنا رابط إعادة تعيين كلمة المرور إلى '+email+'\nافتح بريدك (تحقق من Spam) واتبع الرابط، ثم سجّل الدخول بكلمتك الجديدة.');
+    showAuthTab('login');
+    document.getElementById('tab-login').classList.add('active');
+  }).catch(e=>err.textContent=_fbErrMsg(e));
+}
+function confirmResetPassword() { showAuthTab('login'); } // لم تعد مستخدمة — الرابط يصل بالبريد
+
+function login() {
+  const id   = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const err  = document.getElementById('auth-err');
+  if (!id || !pass) { err.textContent = tr('authFillAll'); return; }
+  err.textContent = '⏳ جارٍ الدخول...';
+  // يقبل الإيميل مباشرة، أو اسم المستخدم (يُبحث عن إيميله في السحابة)
+  const getEmail = id.includes('@')
+    ? Promise.resolve(id.toLowerCase())
+    : fbDB.collection('accounts').where('user','==',id).get()
+        .then(q=> q.empty ? Promise.reject({code:'user-not-found'}) : q.docs[0].data().email);
+  getEmail
+    .then(email=>fbAuth.signInWithEmailAndPassword(email, pass))
+    .then(cred=>{
+      if (!cred.user.emailVerified) {
+        document.getElementById('verify-email-show').textContent = cred.user.email;
+        document.getElementById('demo-code-box').innerHTML =
+          '📬 حسابك غير مفعَّل — افتح رابط التفعيل المرسل لبريدك ثم اضغط الزر بالأسفل.';
+        err.textContent='';
+        showAuthTab('verify');
+        return;
+      }
+      return _afterFirebaseLogin(cred.user);
+    })
+    .catch(e=>err.textContent=_fbErrMsg(e));
 }
 
 function subscriptionBlockMsg(acc) {
@@ -1067,20 +1059,39 @@ function subscriptionBlockMsg(acc) {
     return '⏰ انتهى اشتراكك بتاريخ '+acc.subEnd+' — تواصل مع الإدارة للتجديد';
   return null;
 }
-function _enterAccount(acc) {
-  currentAccId = String(acc.id);
-  localStorage.setItem('currentAccId', currentAccId);
-  loadAccountData();
-  applyCompanyInfo();
-  document.getElementById('acc-name').textContent = '👤 '+acc.biz;
-  ['login-user','login-pass','reg-biz','reg-user','reg-pass'].forEach(i=>document.getElementById(i).value='');
-  document.getElementById('auth-err').textContent='';
-  showScreen('dashboard');
+
+// بعد نجاح دخول Firebase: جلب الملف والاشتراك والبيانات السحابية ثم فتح النظام
+function _afterFirebaseLogin(user) {
+  const err = document.getElementById('auth-err');
+  return cloudLoad(user.uid).then(profile=>{
+    if (!profile) { // حساب Auth بلا ملف (حالة نادرة) — أنشئ ملفاً افتراضياً
+      profile = { biz:user.email, user:user.email.split('@')[0], email:user.email,
+                  createdAt:new Date().toISOString(), subEnd:null, suspended:false };
+      fbDB.collection('accounts').doc(user.uid).set(profile, {merge:true});
+    }
+    const subMsg = subscriptionBlockMsg(profile);
+    if (subMsg) { err.textContent = subMsg; fbAuth.signOut(); return; }
+    currentAccId = user.uid;
+    currentAccProfile = profile;
+    loadAccountData();
+    if (!settings.coName || settings.coName===DEF_SETTINGS.coName) {
+      settings.coName = profile.biz;
+      localStorage.setItem(lsKey('appSettings'), JSON.stringify(settings));
+    }
+    applyCompanyInfo();
+    document.getElementById('acc-name').textContent = '👤 '+profile.biz;
+    ['login-user','login-pass','reg-biz','reg-user','reg-pass','reg-email'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
+    err.textContent='';
+    showScreen('dashboard');
+  });
 }
+
 function logout() {
-  localStorage.removeItem('currentAccId');
-  currentAccId = null;
-  showScreen('auth-screen');
+  cloudSaveNow();
+  fbAuth.signOut().finally(()=>{
+    currentAccId = null; currentAccProfile = null;
+    showScreen('auth-screen');
+  });
 }
 // ═══════════════ SUPER ADMIN (إدارة الاشتراكات) — الوصول عبر #admin في الرابط
 function getSuper() { return JSON.parse(localStorage.getItem('l7_super')||'{"user":"admin","pass":"admin123"}'); }
@@ -1092,7 +1103,17 @@ function adminLogin() {
   sessionStorage.setItem('l7_admin_in','1');
   document.getElementById('admin-login-wrap').style.display='none';
   document.getElementById('admin-panel-wrap').style.display='block';
-  renderAdminPanel();
+  adminLoadAccounts();
+}
+// جلب كل المنشآت من السحابة (Firestore)
+function adminLoadAccounts() {
+  fbDB.collection('accounts').get().then(q=>{
+    accounts = q.docs.map(d=>({ id:d.id, ...d.data() }));
+    renderAdminPanel();
+  }).catch(e=>{
+    document.getElementById('admin-tbody').innerHTML =
+      '<tr><td colspan="8" style="color:#c62828">تعذر جلب البيانات: '+escHtml(e.message||'')+'</td></tr>';
+  });
 }
 function adminLogout() {
   sessionStorage.removeItem('l7_admin_in');
@@ -1107,10 +1128,6 @@ function adminChangePass() {
   alert('تم التغيير ✔');
 }
 function renderAdminPanel() {
-  const _c = getEmailCfg()||{};
-  document.getElementById('ej-public').value   = _c.publicKey||'';
-  document.getElementById('ej-service').value  = _c.serviceId||'';
-  document.getElementById('ej-template').value = _c.templateId||'';
   const tb = document.getElementById('admin-tbody');
   const today = new Date();
   const active = accounts.filter(a=>!a.suspended && (!a.subEnd || new Date(a.subEnd+'T23:59:59')>=today)).length;
@@ -1133,36 +1150,39 @@ function renderAdminPanel() {
       <td style="direction:ltr">${escHtml(a.email||'-')}</td>
       <td>${a.verified!==false?'✅':'❌'}</td>
       <td>${created}</td>
-      <td><input type="date" value="${a.subEnd||''}" onchange="adminSetSubEnd(${a.id},this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit"></td>
+      <td><input type="date" value="${a.subEnd||''}" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit"></td>
       <td>${st}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-success btn-sm" onclick="adminExtend(${a.id},30)">+30ي</button>
-        <button class="btn btn-primary btn-sm" onclick="adminExtend(${a.id},90)">+90ي</button>
-        <button class="btn btn-info btn-sm" onclick="adminExtend(${a.id},365)">+سنة</button>
-        <button class="btn btn-warning btn-sm" onclick="adminToggleSuspend(${a.id})">${a.suspended?'تفعيل':'إيقاف'}</button>
-        <button class="btn btn-danger btn-sm" onclick="adminDeleteAcc(${a.id})">🗑</button>
+        <button class="btn btn-success btn-sm" onclick="adminExtend('${a.id}',30)">+30ي</button>
+        <button class="btn btn-primary btn-sm" onclick="adminExtend('${a.id}',90)">+90ي</button>
+        <button class="btn btn-info btn-sm" onclick="adminExtend('${a.id}',365)">+سنة</button>
+        <button class="btn btn-warning btn-sm" onclick="adminToggleSuspend('${a.id}')">${a.suspended?'تفعيل':'إيقاف'}</button>
+        <button class="btn btn-danger btn-sm" onclick="adminDeleteAcc('${a.id}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
 }
-function _saveAccounts() { localStorage.setItem('l7_accounts', JSON.stringify(accounts)); renderAdminPanel(); }
-function adminSetSubEnd(id, val) { const a=accounts.find(x=>x.id===id); if(a){a.subEnd=val||null;_saveAccounts();} }
+// حفظ تعديل منشأة في السحابة ثم إعادة الرسم
+function _adminUpdate(id, fields) {
+  fbDB.collection('accounts').doc(id).set(fields, {merge:true})
+    .then(()=>{ const a=accounts.find(x=>x.id===id); if(a) Object.assign(a, fields); renderAdminPanel(); })
+    .catch(e=>alert('فشل الحفظ: '+(e.message||'')));
+}
+function adminSetSubEnd(id, val) { _adminUpdate(id, { subEnd: val||null }); }
 function adminExtend(id, days) {
   const a=accounts.find(x=>x.id===id); if(!a) return;
   const base = (a.subEnd && new Date(a.subEnd) > new Date()) ? new Date(a.subEnd) : new Date();
   base.setDate(base.getDate()+days);
-  a.subEnd = base.toISOString().split('T')[0];
-  _saveAccounts();
+  _adminUpdate(id, { subEnd: base.toISOString().split('T')[0] });
 }
-function adminToggleSuspend(id) { const a=accounts.find(x=>x.id===id); if(a){a.suspended=!a.suspended;_saveAccounts();} }
+function adminToggleSuspend(id) { const a=accounts.find(x=>x.id===id); if(a) _adminUpdate(id, { suspended: !a.suspended }); }
 function adminDeleteAcc(id) {
   const a=accounts.find(x=>x.id===id); if(!a) return;
   if (!confirm('حذف منشأة "'+a.biz+'" وجميع بياناتها نهائياً؟')) return;
   if (!confirm('تأكيد أخير — لا يمكن التراجع!')) return;
-  const pre = 'acc_'+id+'_';
-  Object.keys(localStorage).filter(k=>k.startsWith(pre)).forEach(k=>localStorage.removeItem(k));
-  accounts = accounts.filter(x=>x.id!==id);
-  _saveAccounts();
+  fbDB.collection('accounts').doc(id).delete()
+    .then(()=>{ accounts = accounts.filter(x=>x.id!==id); renderAdminPanel(); })
+    .catch(e=>alert('فشل الحذف: '+(e.message||'')));
 }
 
 let editingInvId=null, editingProdId=null, returnForInvId=null, rowCount=0, stmtClientId=null;
@@ -2424,21 +2444,17 @@ if (location.hash === '#admin') {
   if (sessionStorage.getItem('l7_admin_in')==='1') {
     document.getElementById('admin-login-wrap').style.display='none';
     document.getElementById('admin-panel-wrap').style.display='block';
-    renderAdminPanel();
+    adminLoadAccounts();
   }
 } else {
-  const _acc = currentAccId && accounts.find(a=>String(a.id)===String(currentAccId));
-  if (_acc && !subscriptionBlockMsg(_acc) && _acc.verified!==false) {
-    loadAccountData();
-    applyCompanyInfo();
-    document.getElementById('acc-name').textContent = '👤 '+_acc.biz;
-    showScreen('dashboard');
-  } else {
-    if (_acc) { const m=subscriptionBlockMsg(_acc); if(m) setTimeout(()=>document.getElementById('auth-err').textContent=m,0); }
-    currentAccId = null;
-    localStorage.removeItem('currentAccId');
-    showScreen('auth-screen');
-  }
+  showScreen('auth-screen');
+  // استئناف الجلسة تلقائياً إن كان المستخدم داخلاً من قبل (Firebase يتذكره)
+  let _booted = false;
+  fbAuth.onAuthStateChanged(u=>{
+    if (_booted) return;
+    _booted = true;
+    if (u && u.emailVerified) _afterFirebaseLogin(u);
+  });
 }
 window.addEventListener('hashchange', ()=>location.reload());
 </script>
