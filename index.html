@@ -300,8 +300,6 @@ const fbDB   = firebase.firestore();
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('login');return false" style="font-size:.8rem;color:#888">← العودة للدخول</a></div>
     </div>
     <div style="font-size:.74rem;color:#999;text-align:center;margin-top:14px" data-i18n="authNote">كل حساب مستقل تماماً ببياناته: فواتير، عملاء، مستودع، إعدادات</div>
-    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v7</div>
-    <div id="flight-log" style="font-size:.72rem;color:#1565c0;text-align:center;margin-top:4px;direction:rtl;word-break:break-word"></div>
   </div>
 </div>
 
@@ -1069,21 +1067,15 @@ function login() {
   const err  = document.getElementById('auth-err');
   if (!id || !pass) { err.textContent = tr('authFillAll'); return; }
   err.textContent = '⏳ جارٍ الدخول...';
-  // الصندوق الأسود: تسجيل كل خطوة في تخزين دائم — يُعرض عند الإقلاع إن أُعيد تحميل الصفحة
-  _flightStart();
-  // علامة تشخيص: لو أُعيد تحميل الصفحة أثناء الدخول سنكتشف ذلك عند الإقلاع
-  try { sessionStorage.setItem('l7_login_busy', '1'); } catch(_) {}
   // يقبل الإيميل مباشرة، أو اسم المستخدم (يُبحث عن إيميله في السحابة)
   const getEmail = id.includes('@')
     ? Promise.resolve(id.toLowerCase())
     : fbDB.collection('accounts').where('user','==',id).get()
         .then(q=> q.empty ? Promise.reject({code:'user-not-found'}) : q.docs[0].data().email);
   getEmail
-    .then(email=>{ _flight('إيميل✓'); return fbAuth.signInWithEmailAndPassword(email, pass); })
+    .then(email=>fbAuth.signInWithEmailAndPassword(email, pass))
     .then(cred=>{
-      _flight('دخول✓');
       if (!cred.user.emailVerified) {
-        _flight('غير مفعّل!');
         document.getElementById('verify-email-show').textContent = cred.user.email;
         document.getElementById('demo-code-box').innerHTML =
           '📬 حسابك غير مفعَّل — افتح رابط التفعيل المرسل لبريدك ثم اضغط الزر بالأسفل.';
@@ -1093,30 +1085,7 @@ function login() {
       }
       return _afterFirebaseLogin(cred.user);
     })
-    .catch(e=>{ _flight('خطأ: '+_fbErrMsg(e)); err.textContent=_fbErrMsg(e); })
-    .finally(()=>{ try { sessionStorage.removeItem('l7_login_busy'); } catch(_) {} });
-}
-// ── الصندوق الأسود: يسجل كل خطوة ويعرضها مباشرة أسفل صندوق الدخول
-function _flightStart(){
-  try { localStorage.setItem('l7_flight', JSON.stringify({ t: Date.now(), steps: ['بدء'] })); } catch(_) {}
-  _flightRender();
-}
-function _flight(s){
-  try {
-    const f = JSON.parse(localStorage.getItem('l7_flight')||'null');
-    if (!f) return;
-    f.steps.push(s);
-    localStorage.setItem('l7_flight', JSON.stringify(f));
-  } catch(_) {}
-  _flightRender();
-}
-function _flightRender(){
-  const el = document.getElementById('flight-log');
-  if (!el) return;
-  try {
-    const f = JSON.parse(localStorage.getItem('l7_flight')||'null');
-    el.textContent = f && f.steps.length ? '🔍 ' + f.steps.join(' ← ') : '';
-  } catch(_) {}
+    .catch(e=>err.textContent=_fbErrMsg(e));
 }
 
 function subscriptionBlockMsg(acc) {
@@ -1136,7 +1105,7 @@ function _afterFirebaseLogin(user) {
       fbDB.collection('accounts').doc(user.uid).set(profile, {merge:true});
     }
     const subMsg = subscriptionBlockMsg(profile);
-    if (subMsg) { _flight('حظر: '+subMsg); err.textContent = subMsg; fbAuth.signOut(); return; }
+    if (subMsg) { err.textContent = subMsg; fbAuth.signOut(); return; }
     currentAccId = user.uid;
     currentAccProfile = profile;
     loadAccountData();
@@ -1144,25 +1113,19 @@ function _afterFirebaseLogin(user) {
       settings.coName = profile.biz;
       localStorage.setItem(lsKey('appSettings'), JSON.stringify(settings));
     }
-    _flight('بيانات✓');
     applyCompanyInfo();
     document.getElementById('acc-name').textContent = '👤 '+profile.biz;
     err.textContent='';
     showScreen('dashboard');
-    _flight('لوحة✓');
     ['login-user','login-pass','reg-biz','reg-user','reg-pass','reg-email'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
-    // علامة تشخيص: لو أُعيد تحميل الصفحة خلال ثوانٍ من دخول ناجح فسنكشف ذلك عند الإقلاع
-    try { localStorage.setItem('l7_post_login', String(Date.now())); } catch(_) {}
   });
 }
 
 function logout() {
-  _flight('استدعاء خروج!');
   cloudSaveNow();
   fbAuth.signOut().finally(()=>{
     currentAccId = null; currentAccProfile = null;
     showScreen('auth-screen');
-    _flightRender();
   });
 }
 // ═══════════════ SUPER ADMIN (إدارة الاشتراكات) — الوصول عبر #admin في الرابط
@@ -2530,26 +2493,10 @@ if (location.hash === '#admin') {
   }
 } else {
   showScreen('auth-screen');
-  // تشخيص: هل أُعيد تحميل الصفحة أثناء محاولة دخول سابقة؟ وهل التخزين يعمل؟
+  // فحص أن التخزين المحلي متاح (ضروري لعمل النظام) + تنظيف مفاتيح تشخيص قديمة
   try {
-    if (sessionStorage.getItem('l7_login_busy') === '1') {
-      sessionStorage.removeItem('l7_login_busy');
-      document.getElementById('auth-err').textContent =
-        '⚠ أُعيد تحميل الصفحة أثناء الدخول! السبب غالباً إضافة في المتصفح — عطّل الإضافات (Tampermonkey ونحوها) وجرب مجدداً';
-    }
-    const _pl = +(localStorage.getItem('l7_post_login')||0);
-    if (_pl) {
-      localStorage.removeItem('l7_post_login');
-      if (Date.now()-_pl < 20000)
-        document.getElementById('auth-err').textContent =
-          '⚠ دخولك نجح وفُتحت اللوحة ثم أعاد متصفحك تحميل الصفحة! إضافة في المتصفح تسبب ذلك — افتح chrome://extensions وعطّل الإضافات كلها ثم جرب';
-    }
-    // الصندوق الأسود: عرض سجل آخر محاولة دخول بشكل دائم أسفل الصندوق
-    const _fl = JSON.parse(localStorage.getItem('l7_flight')||'null');
-    if (_fl && _fl.t) {
-      _flight('تحميل صفحة جديد');
-      _flightRender();
-    }
+    localStorage.removeItem('l7_flight'); localStorage.removeItem('l7_post_login');
+    sessionStorage.removeItem('l7_login_busy');
     localStorage.setItem('l7_storage_test','1'); localStorage.removeItem('l7_storage_test');
   } catch(_) {
     document.getElementById('auth-err').textContent =
