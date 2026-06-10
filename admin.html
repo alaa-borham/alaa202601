@@ -47,6 +47,7 @@ body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#eef2f7;direction
 .pay-cash{background:#e8f5e9;color:#2e7d32}.pay-ajal{background:#fff3e0;color:#e65100}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 firebase.initializeApp({
@@ -58,6 +59,7 @@ firebase.initializeApp({
   appId: "1:924441815217:web:f81b09e1cf0d0639fe9a90"
 });
 const fbDB = firebase.firestore();
+const fbAuth = firebase.auth();
 </script>
 </head>
 <body>
@@ -190,6 +192,7 @@ function renderAdminPanel(){
         <button class="btn btn-primary btn-sm" onclick="adminExtend('${a.id}',90)">+90ي</button>
         <button class="btn btn-info btn-sm" onclick="adminExtend('${a.id}',365)">+سنة</button>
         <button class="btn btn-warning btn-sm" onclick="adminToggleSuspend('${a.id}')">${a.suspended?'تفعيل':'إيقاف'}</button>
+        <button class="btn btn-sm" style="background:#6a1b9a;color:white" onclick="adminResetPass('${a.id}')" title="إرسال رابط تغيير كلمة المرور">🔑</button>
         <button class="btn btn-danger btn-sm" onclick="adminDeleteAcc('${a.id}')">🗑</button>
       </td>
     </tr>`;
@@ -208,6 +211,15 @@ function adminExtend(id, days){
   _adminUpdate(id, { subEnd: base.toISOString().split('T')[0] });
 }
 function adminToggleSuspend(id){ const a=accounts.find(x=>x.id===id); if(a) _adminUpdate(id, { suspended: !a.suspended }); }
+// إرسال رابط تغيير كلمة المرور لبريد المنشأة (التغيير المباشر يتطلب خادماً — Firebase لا يسمح به من المتصفح)
+function adminResetPass(id){
+  const a=accounts.find(x=>x.id===id); if(!a) return;
+  if (!a.email){ alert('لا يوجد بريد مسجل لهذه المنشأة'); return; }
+  if (!confirm('إرسال رابط تغيير كلمة المرور إلى:\n'+a.email+' ؟')) return;
+  fbAuth.sendPasswordResetEmail(a.email)
+    .then(()=>alert('📬 أُرسل رابط تغيير كلمة المرور إلى '+a.email+'\nيفتح صاحب المنشأة بريده ويضع كلمة مرور جديدة.'))
+    .catch(e=>alert('فشل الإرسال: '+(e.message||'')));
+}
 function adminDeleteAcc(id){
   const a=accounts.find(x=>x.id===id); if(!a) return;
   if (!confirm('حذف منشأة "'+a.biz+'" وجميع بياناتها نهائياً؟')) return;
