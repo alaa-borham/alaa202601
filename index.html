@@ -123,6 +123,10 @@ body.ltr .lang-btn{left:auto;right:18px}
 .fg label{display:block;font-size:.81rem;color:#555;margin-bottom:3px;font-weight:600}
 .fg input,.fg select,.fg textarea{width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:7px;font-size:.87rem;font-family:inherit;background:#fafafa;transition:border-color .15s}
 .fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:#5d9e3f;box-shadow:0 0 0 3px rgba(93,158,63,.1);background:white}
+.pwd-wrap{position:relative}
+.pwd-wrap input{padding-inline-end:36px}
+.pwd-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.05rem;opacity:.55;padding:2px 4px;line-height:1}
+.pwd-eye:hover{opacity:1}
 .fg textarea{resize:vertical;min-height:60px}
 .req{color:#c62828}
 /* FORM CARD */
@@ -261,7 +265,7 @@ const fbDB   = firebase.firestore();
     <div class="auth-err" id="auth-err"></div>
     <div id="auth-login-form">
       <div class="fg"><label data-i18n="authUser">اسم المستخدم أو الإيميل</label><input type="text" id="login-user"></div>
-      <div class="fg"><label data-i18n="authPass">كلمة المرور</label><input type="password" id="login-pass" onkeydown="if(event.key==='Enter')login()"></div>
+      <div class="fg"><label data-i18n="authPass">كلمة المرور</label><div class="pwd-wrap"><input type="password" id="login-pass" onkeydown="if(event.key==='Enter')login()"><button type="button" class="pwd-eye" onclick="togglePwd(this)" tabindex="-1" aria-label="إظهار كلمة المرور">👁️</button></div></div>
       <button class="btn btn-success" style="width:100%;padding:11px" onclick="login()" data-i18n="authBtnLogin">دخول →</button>
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('forgot');return false" style="font-size:.8rem;color:#1565c0">نسيت كلمة المرور؟</a></div>
     </div>
@@ -269,7 +273,7 @@ const fbDB   = firebase.firestore();
       <div class="fg"><label data-i18n="authBiz">اسم المنشأة / الشركة</label><input type="text" id="reg-biz"></div>
       <div class="fg"><label>البريد الإلكتروني <span class="req">*</span></label><input type="email" id="reg-email" placeholder="name@example.com" list="email-suggest" oninput="suggestEmail(this)"></div>
       <div class="fg"><label data-i18n="authUser">اسم المستخدم</label><input type="text" id="reg-user"></div>
-      <div class="fg"><label data-i18n="authPass">كلمة المرور</label><input type="password" id="reg-pass"></div>
+      <div class="fg"><label data-i18n="authPass">كلمة المرور</label><div class="pwd-wrap"><input type="password" id="reg-pass"><button type="button" class="pwd-eye" onclick="togglePwd(this)" tabindex="-1" aria-label="إظهار كلمة المرور">👁️</button></div></div>
       <button class="btn btn-primary" style="width:100%;padding:11px" onclick="registerAccount()" data-i18n="authBtnRegister">إنشاء الحساب ✔</button>
     </div>
     <!-- email verification -->
@@ -289,7 +293,7 @@ const fbDB   = firebase.firestore();
       <div id="forgot-step2" style="display:none">
         <div id="demo-reset-box" style="background:#fff8e1;border:1.5px dashed #f9a825;border-radius:8px;padding:10px;text-align:center;margin-bottom:10px;font-size:.8rem;color:#795548"></div>
         <div class="fg"><label>رمز الاستعادة</label><input type="text" id="reset-code" maxlength="6" style="text-align:center;font-size:1.2rem;letter-spacing:8px"></div>
-        <div class="fg"><label>كلمة المرور الجديدة</label><input type="password" id="reset-pass"></div>
+        <div class="fg"><label>كلمة المرور الجديدة</label><div class="pwd-wrap"><input type="password" id="reset-pass"><button type="button" class="pwd-eye" onclick="togglePwd(this)" tabindex="-1" aria-label="إظهار كلمة المرور">👁️</button></div></div>
         <button class="btn btn-success" style="width:100%;padding:11px" onclick="confirmResetPassword()">تغيير كلمة المرور ✔</button>
       </div>
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('login');return false" style="font-size:.8rem;color:#888">← العودة للدخول</a></div>
@@ -307,7 +311,7 @@ const fbDB   = firebase.firestore();
       <h3 style="text-align:center;color:#1a1a2e;margin-bottom:16px">🛡️ سوبر أدمن</h3>
       <div class="auth-err" id="admin-err"></div>
       <div class="fg"><label>اسم المستخدم</label><input type="text" id="admin-user"></div>
-      <div class="fg"><label>كلمة المرور</label><input type="password" id="admin-pass" onkeydown="if(event.key==='Enter')adminLogin()"></div>
+      <div class="fg"><label>كلمة المرور</label><div class="pwd-wrap"><input type="password" id="admin-pass" onkeydown="if(event.key==='Enter')adminLogin()"><button type="button" class="pwd-eye" onclick="togglePwd(this)" tabindex="-1" aria-label="إظهار كلمة المرور">👁️</button></div></div>
       <button class="btn" style="width:100%;padding:11px;background:#1a1a2e;color:white" onclick="adminLogin()">دخول →</button>
       <div style="font-size:.72rem;color:#aaa;text-align:center;margin-top:10px">الافتراضي: admin / admin123 — غيّرها فور الدخول</div>
     </div>
@@ -917,6 +921,12 @@ function loadAccountData() {
 }
 
 // ═══════════════ AUTH
+function togglePwd(btn) {
+  const inp = btn.parentElement.querySelector('input');
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  btn.textContent = show ? '🙈' : '👁️';
+}
 function showAuthTab(t) {
   document.getElementById('tab-login').classList.toggle('active', t==='login');
   document.getElementById('tab-register').classList.toggle('active', t==='register');

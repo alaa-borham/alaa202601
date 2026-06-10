@@ -13,6 +13,10 @@ body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#eef2f7;direction
 .fg label{display:block;font-size:.81rem;color:#555;margin-bottom:3px;font-weight:600}
 .fg input{width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:7px;font-size:.87rem;font-family:inherit;background:#fafafa}
 .fg input:focus{outline:none;border-color:#5d9e3f;box-shadow:0 0 0 3px rgba(93,158,63,.1);background:white}
+.pwd-wrap{position:relative}
+.pwd-wrap input{padding-inline-end:36px}
+.pwd-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.05rem;opacity:.55;padding:2px 4px;line-height:1}
+.pwd-eye:hover{opacity:1}
 .page-wrap{min-height:100vh;background:#eef2f7;padding:16px}
 .page-header{color:white;padding:13px 16px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px}
 .page-header h2{font-size:1.15rem}
@@ -64,7 +68,7 @@ const fbDB = firebase.firestore();
     <h3 style="text-align:center;color:#1a1a2e;margin-bottom:16px">🛡️ سوبر أدمن</h3>
     <div class="auth-err" id="admin-err"></div>
     <div class="fg"><label>اسم المستخدم</label><input type="text" id="admin-user"></div>
-    <div class="fg"><label>كلمة المرور</label><input type="password" id="admin-pass" onkeydown="if(event.key==='Enter')adminLogin()"></div>
+    <div class="fg"><label>كلمة المرور</label><div class="pwd-wrap"><input type="password" id="admin-pass" onkeydown="if(event.key==='Enter')adminLogin()"><button type="button" class="pwd-eye" onclick="togglePwd(this)" tabindex="-1" aria-label="إظهار كلمة المرور">👁️</button></div></div>
     <button class="btn" style="width:100%;padding:11px;background:#1a1a2e;color:white" onclick="adminLogin()">دخول →</button>
     <div style="font-size:.72rem;color:#aaa;text-align:center;margin-top:10px">الافتراضي: admin / admin123 — غيّرها فور الدخول</div>
   </div>
@@ -106,6 +110,12 @@ const fbDB = firebase.firestore();
 <script>
 let accounts = [];
 
+function togglePwd(btn) {
+  const inp = btn.parentElement.querySelector('input');
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  btn.textContent = show ? '🙈' : '👁️';
+}
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(dateStr){
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){ const d=new Date(dateStr); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
