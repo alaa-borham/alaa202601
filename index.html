@@ -18,7 +18,8 @@ body.ltr{direction:ltr}
 .dash-header{text-align:center;color:white;margin-bottom:30px;position:relative;z-index:1}
 .dash-header p{font-size:.92rem;opacity:.65;margin-top:6px;letter-spacing:.5px}
 /* AUTH (multi-tenant login) */
-#auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(900px 500px at 80% -10%,#43a047 0%,transparent 50%),linear-gradient(135deg,#0d2818,#1b4d2e)}
+#auth-screen{min-height:100vh;align-items:center;justify-content:center;background:radial-gradient(900px 500px at 80% -10%,#43a047 0%,transparent 50%),linear-gradient(135deg,#0d2818,#1b4d2e)}
+#auth-screen.active{display:flex}
 .auth-card{background:white;border-radius:18px;padding:28px;width:100%;max-width:390px;box-shadow:0 16px 48px rgba(0,0,0,.45);margin:16px}
 .auth-tabs{display:flex;gap:6px;margin:18px 0 16px}
 .auth-tab{flex:1;padding:9px;border:none;border-radius:8px;background:#eee;cursor:pointer;font-family:inherit;font-weight:bold;font-size:.88rem}
@@ -299,7 +300,7 @@ const fbDB   = firebase.firestore();
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('login');return false" style="font-size:.8rem;color:#888">← العودة للدخول</a></div>
     </div>
     <div style="font-size:.74rem;color:#999;text-align:center;margin-top:14px" data-i18n="authNote">كل حساب مستقل تماماً ببياناته: فواتير، عملاء، مستودع، إعدادات</div>
-    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v6</div>
+    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v7</div>
     <div id="flight-log" style="font-size:.72rem;color:#1565c0;text-align:center;margin-top:4px;direction:rtl;word-break:break-word"></div>
   </div>
 </div>
