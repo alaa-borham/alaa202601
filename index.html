@@ -299,7 +299,7 @@ const fbDB   = firebase.firestore();
       <div style="text-align:center;margin-top:10px"><a href="#" onclick="showAuthTab('login');return false" style="font-size:.8rem;color:#888">← العودة للدخول</a></div>
     </div>
     <div style="font-size:.74rem;color:#999;text-align:center;margin-top:14px" data-i18n="authNote">كل حساب مستقل تماماً ببياناته: فواتير، عملاء، مستودع، إعدادات</div>
-    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v3</div>
+    <div style="font-size:.68rem;color:#bbb;text-align:center;margin-top:6px">الإصدار v4</div>
   </div>
 </div>
 
@@ -1121,6 +1121,8 @@ function _afterFirebaseLogin(user) {
     err.textContent='';
     showScreen('dashboard');
     ['login-user','login-pass','reg-biz','reg-user','reg-pass','reg-email'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
+    // علامة تشخيص: لو أُعيد تحميل الصفحة خلال ثوانٍ من دخول ناجح فسنكشف ذلك عند الإقلاع
+    try { localStorage.setItem('l7_post_login', String(Date.now())); } catch(_) {}
   });
 }
 
@@ -2503,6 +2505,13 @@ if (location.hash === '#admin') {
       document.getElementById('auth-err').textContent =
         '⚠ أُعيد تحميل الصفحة أثناء الدخول! السبب غالباً إضافة في المتصفح — عطّل الإضافات (Tampermonkey ونحوها) وجرب مجدداً';
     }
+    const _pl = +(localStorage.getItem('l7_post_login')||0);
+    if (_pl) {
+      localStorage.removeItem('l7_post_login');
+      if (Date.now()-_pl < 20000)
+        document.getElementById('auth-err').textContent =
+          '⚠ دخولك نجح وفُتحت اللوحة ثم أعاد متصفحك تحميل الصفحة! إضافة في المتصفح تسبب ذلك — افتح chrome://extensions وعطّل الإضافات كلها ثم جرب';
+    }
     localStorage.setItem('l7_storage_test','1'); localStorage.removeItem('l7_storage_test');
   } catch(_) {
     document.getElementById('auth-err').textContent =
@@ -2514,7 +2523,12 @@ if (location.hash === '#admin') {
     if (_booted) return;
     _booted = true;
     if (!u) return;
-    if (u.emailVerified) { _afterFirebaseLogin(u).catch(e=>console.warn('auto login failed', e)); return; }
+    if (u.emailVerified) {
+      _afterFirebaseLogin(u).catch(e=>{
+        document.getElementById('auth-err').textContent = '⚠ تعذر استئناف الجلسة: ' + (e && (e.message||e.code) || '');
+      });
+      return;
+    }
     // الحالة المحفوظة قد تكون قديمة (فعّل بريده بعد آخر زيارة) — حدّثها من الخادم
     u.reload().then(()=>{
       const cu = fbAuth.currentUser;
