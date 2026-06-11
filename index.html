@@ -368,6 +368,7 @@ const fbDB   = firebase.firestore();
       <button class="nav-icon-btn" onclick="logout()">🚪 <span data-i18n="logout">خروج</span></button>
     </div>
   </div>
+  <div id="sub-notice" style="display:none;max-width:1150px;margin:0 auto 16px;background:#fff8e1;border:1.5px solid #ffb300;color:#e65100;border-radius:12px;padding:11px 18px;font-size:.92rem;font-weight:600;position:relative;z-index:1;text-align:center"></div>
   <div class="dash-hero">
     <div>
       <h1 data-i18n="heroTitle">مرحباً بك في نظام LEVEL7 👋</h1>
@@ -413,6 +414,7 @@ const fbDB   = firebase.firestore();
             <option value="تحويل">🏦 تحويل</option>
           </select>
         </div>
+        <div class="fg"><label>شروط وملاحظات أسفل الفاتورة (اختياري)</label><textarea id="set-terms" rows="2" placeholder="مثال: البضاعة المباعة لا تُرد ولا تُستبدل بعد 14 يوماً"></textarea></div>
 
         <h4 style="color:#2e7d32;margin:18px 0 12px" data-i18n="setGeneral">🌐 عام</h4>
         <div class="fg"><label data-i18n="setLang">اللغة</label>
@@ -426,6 +428,9 @@ const fbDB   = firebase.firestore();
           </select>
         </div>
         <button class="btn btn-info" style="width:100%;margin-bottom:8px" onclick="openBranding()" data-i18n="setBranding">🎨 الشعار والخلفية (الصور والقياسات)</button>
+
+        <h4 style="color:#2e7d32;margin:18px 0 12px">📦 تصدير البيانات</h4>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="exportToExcel()">📊 تصدير كل البيانات إلى Excel (نسخة احتياطية)</button>
 
         <div style="display:flex;gap:8px;margin-top:14px">
           <button class="btn btn-success" style="flex:1" onclick="saveSettings()" data-i18n="btnSaveSettings">✔ حفظ الإعدادات</button>
@@ -668,12 +673,13 @@ const fbDB   = firebase.firestore();
         <div class="itb">
           <div class="itr"><span class="tl">السعر</span><span class="tv" id="p-subtotal"></span></div>
           <div class="itr"><span class="tl">الخصم Discount</span><span class="tv" id="p-discount"></span></div>
-          <div class="itr"><span class="tl">الضريبه</span><span class="tv" id="p-tax"></span></div>
+          <div class="itr"><span class="tl" id="p-tax-lbl">الضريبه</span><span class="tv" id="p-tax"></span></div>
         </div>
       </div>
       <div style="max-width:245px">
         <div class="gw"><span class="gl">الإجمالي</span><span class="gv" id="p-grand"></span></div>
       </div>
+      <div id="p-terms" style="display:none;margin-top:16px;border-top:1px dashed #bbb;padding-top:8px;font-size:.76rem;color:#666;text-align:center;white-space:pre-line"></div>
       <div id="print-datetime"></div>
     </div>
   </div>
@@ -1123,6 +1129,15 @@ function _afterFirebaseLogin(user) {
     }
     applyCompanyInfo();
     document.getElementById('acc-name').textContent = '👤 '+profile.biz;
+    // إشعار قرب انتهاء الاشتراك (آخر 7 أيام)
+    const sn = document.getElementById('sub-notice');
+    if (sn && profile.subEnd) {
+      const daysLeft = Math.ceil((new Date(profile.subEnd+'T23:59:59') - new Date()) / 86400000);
+      if (daysLeft >= 0 && daysLeft <= 7) {
+        sn.textContent = '⏰ تنبيه: اشتراكك ينتهي ' + (daysLeft===0 ? 'اليوم' : 'خلال '+daysLeft+(daysLeft===1?' يوم':' أيام')) + ' ('+profile.subEnd+') — تواصل مع الإدارة للتجديد';
+        sn.style.display = 'block';
+      } else sn.style.display = 'none';
+    }
     err.textContent='';
     showScreen('dashboard');
     ['login-user','login-pass','reg-biz','reg-user','reg-pass','reg-email'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
@@ -1565,8 +1580,45 @@ function renderAnalytics() {
   const payAmounts = {};
   invoices.forEach(i => { const p=i.payment||'كاش'; payAmounts[p]=(payAmounts[p]||0)+i.grand; });
 
-  const mkChart = (title, data, cls, fmt) => {
-    const entries = Object.entries(data).sort((a,b)=>b[1]-a[1]);
+  // ── المبيعات الشهرية (آخر 12 شهراً، ترتيب زمني)
+  const monthly = {};
+  for (let m=11; m>=0; m--) {
+    const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-m);
+    monthly[(d.getMonth()+1)+'/'+d.getFullYear()] = 0;
+  }
+  invoices.forEach(i => {
+    if (i.type==='فاتورة مرتجع') return;
+    const d = new Date(i.date);
+    const k = (d.getMonth()+1)+'/'+d.getFullYear();
+    if (k in monthly) monthly[k] += i.grand;
+  });
+
+  // ── أفضل 10 أصناف مبيعاً (بالإيراد)
+  const prodSales = {};
+  invoices.forEach(inv => {
+    if (inv.type==='فاتورة مرتجع') return;
+    inv.items.forEach(it => { prodSales[it.desc] = (prodSales[it.desc]||0) + it.total; });
+  });
+  const topProducts = Object.fromEntries(Object.entries(prodSales).sort((a,b)=>b[1]-a[1]).slice(0,10));
+
+  // ── أرصدة العملاء الآجلة (فواتير آجل ناقص الدفعات)
+  const debts = {};
+  invoices.forEach(i => {
+    if (i.payment!=='آجل' || i.type==='فاتورة مرتجع' || !i.clientId) return;
+    debts[i.clientId] = (debts[i.clientId]||0) + i.grand;
+  });
+  payments.forEach(p => {
+    if (p.type==='دفعة' && p.clientId in debts) debts[p.clientId] -= p.amount;
+  });
+  const debtByName = {};
+  Object.entries(debts).forEach(([cid,v])=>{
+    if (v <= 0) return;
+    const c = customers.find(x=>String(x.id)===String(cid));
+    debtByName[c ? c.name : (ar?'عميل محذوف':'Deleted client')] = v;
+  });
+
+  const mkChart = (title, data, cls, fmt, keepOrder) => {
+    const entries = keepOrder ? Object.entries(data) : Object.entries(data).sort((a,b)=>b[1]-a[1]);
     if (!entries.length) return `<div class="an-card"><h3>${title}</h3><div style="color:#bbb;text-align:center;padding:20px">${ar?'لا توجد بيانات':'No data'}</div></div>`;
     const max = Math.max(...entries.map(e=>e[1])) || 1;
     return `<div class="an-card"><h3>${title}</h3>` +
@@ -1578,6 +1630,9 @@ function renderAnalytics() {
   };
 
   document.getElementById('an-charts').innerHTML =
+    mkChart(ar?'📅 المبيعات الشهرية (آخر 12 شهراً)':'📅 Monthly sales (last 12 months)', monthly, '', null, true) +
+    mkChart(ar?'🏆 أفضل الأصناف مبيعاً':'🏆 Top selling products', topProducts, 'blue') +
+    mkChart(ar?'💳 أرصدة العملاء الآجلة (مديونيات)':'💳 Outstanding client balances', debtByName, 'orange') +
     mkChart(ar?'💰 المبيعات حسب الفئة':'💰 Sales by category', catSales, '') +
     mkChart(ar?'📦 الكميات المباعة حسب الفئة':'📦 Quantities sold by category', catQty, 'blue', v=>formatNum(v)) +
     mkChart(ar?'🏷️ عدد الأصناف حسب الفئة':'🏷️ Products per category', catCount, 'orange', v=>formatNum(v)) +
@@ -2118,7 +2173,11 @@ function printInvoice(inv) {
   document.getElementById('p-subtotal').textContent    = formatNum(inv.subtotal);
   document.getElementById('p-discount').textContent    = formatNum(inv.totalDisc);
   document.getElementById('p-tax').textContent         = formatNum(inv.tax);
+  document.getElementById('p-tax-lbl').textContent     = 'الضريبه' + (inv.taxRate ? ' ('+inv.taxRate+'%)' : '');
   document.getElementById('p-grand').textContent       = formatNum(inv.grand);
+  const terms = document.getElementById('p-terms');
+  terms.textContent = settings.invTerms||'';
+  terms.style.display = settings.invTerms ? 'block' : 'none';
   const payEl = document.getElementById('p-payment');
   const payCell = document.getElementById('p-pay-cell');
   payEl.textContent = inv.payment||'كاش';
@@ -2467,6 +2526,7 @@ function openSettingsForm() {
   document.getElementById('set-tax').value     = settings.taxRate;
   document.getElementById('set-next-inv').value= nextInvNum;
   document.getElementById('set-def-pay').value = settings.defPay;
+  document.getElementById('set-terms').value   = settings.invTerms||'';
   document.getElementById('set-lang').value    = lang;
 }
 function saveSettings() {
@@ -2475,6 +2535,7 @@ function saveSettings() {
   settings.coWeb   = document.getElementById('set-co-web').value.trim();
   settings.taxRate = parseFloat(document.getElementById('set-tax').value)||0;
   settings.defPay  = document.getElementById('set-def-pay').value;
+  settings.invTerms= document.getElementById('set-terms').value.trim();
   lsSet('appSettings', JSON.stringify(settings));
   const ni = parseInt(document.getElementById('set-next-inv').value);
   if (ni && ni>0) { nextInvNum = ni; lsSet('nextInvNum', nextInvNum); }
@@ -2488,6 +2549,41 @@ function applyCompanyInfo() {
   document.getElementById('p-co-name').textContent = settings.coName;
   document.getElementById('p-co-sub').textContent  = settings.coSub;
   document.getElementById('p-co-web').textContent  = settings.coWeb;
+}
+
+// ═══════════════ تصدير كل بيانات المنشأة لملف Excel (نسخة احتياطية)
+function exportToExcel() {
+  const lib = window.XLSX ? Promise.resolve() : new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  lib.then(()=>{
+    const wb = XLSX.utils.book_new();
+    const invRows = invoices.map(i=>({ 'رقم الفاتورة':i.invNum, 'التاريخ':i.date, 'النوع':i.type,
+      'العميل':i.clientName, 'طريقة الدفع':i.payment||'كاش', 'المجموع':i.subtotal,
+      'الخصم':i.totalDisc, 'الضريبة':i.tax, 'الإجمالي':i.grand }));
+    const itemRows = [];
+    invoices.forEach(i=>i.items.forEach(it=>itemRows.push({ 'رقم الفاتورة':i.invNum, 'التاريخ':i.date,
+      'الصنف':it.desc, 'الكمية':it.qty, 'السعر':it.price, 'الخصم':it.disc||0, 'الإجمالي':it.total })));
+    const custRows = customers.map(c=>({ 'رقم العميل':c.num, 'الاسم':c.name, 'الهاتف':c.phone||'' }));
+    const prodRows = products.map(p=>({ 'الكود':p.code, 'الاسم':p.name, 'الفئة':p.category||'',
+      'الوحدة':p.unit||'', 'سعر البيع':p.sellPrice, 'سعر الشراء':p.isService?'':(p.buyPrice||0),
+      'الكمية':p.isService?'خدمة':(p.qty||0) }));
+    const payRows = payments.map(p=>{
+      const c = customers.find(x=>String(x.id)===String(p.clientId));
+      return { 'التاريخ':p.date, 'العميل':c?c.name:'', 'النوع':p.type, 'المبلغ':p.amount, 'ملاحظات':p.notes||'' };
+    });
+    [[invRows,'الفواتير'],[itemRows,'بنود الفواتير'],[custRows,'العملاء'],[prodRows,'المستودع'],[payRows,'الدفعات']]
+      .forEach(([rows,name])=>{
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{'لا توجد بيانات':''}]);
+        if (!wb.Workbook) wb.Workbook = {};
+        if (!wb.Workbook.Views) wb.Workbook.Views = [{ RTL: true }];
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      });
+    XLSX.writeFile(wb, 'LEVEL7-بياناتي-' + new Date().toISOString().split('T')[0] + '.xlsx');
+  }).catch(()=>alert(lang==='ar' ? 'تعذر تحميل أداة التصدير — تحقق من اتصال الإنترنت' : 'Could not load export tool — check your connection'));
 }
 function resetAllData() {
   const ar = lang==='ar';
