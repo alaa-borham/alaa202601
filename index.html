@@ -234,11 +234,23 @@ body.ltr .lang-btn{left:auto;right:18px}
 .stmt-row .dr{color:#c62828;font-weight:600}.stmt-row .cr{color:#2e7d32;font-weight:600}
 .balance-positive{color:#2e7d32;font-weight:bold}.balance-negative{color:#c62828;font-weight:bold}
 #print-datetime{text-align:center;font-size:.72rem;color:#999;margin-top:16px}
+/* RECEIPT — سند قبض رسمي */
+.rcpt-print{background:white;width:210mm;margin:0 auto;padding:10mm 12mm 8mm;box-shadow:0 4px 24px rgba(0,0,0,.25);direction:rtl;font-family:'Segoe UI',Tahoma,Arial,sans-serif;border:2px dashed #9e9e9e;position:relative;overflow:hidden}
+.rcpt-hdr{display:flex;justify-content:space-between;align-items:center;border:2.5px solid #2e7d32;border-radius:10px;padding:9px 14px;margin-bottom:14px;background:#f9fff5;gap:10px}
+.rc-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:13px;font-size:.93rem}
+.rc-lbl{font-weight:bold;color:#1b5e20;min-width:118px;white-space:nowrap}
+.rc-val{flex:1;border-bottom:1.5px solid #c8e6c9;padding-bottom:3px;color:#222;font-weight:600}
+.rc-box{border:1.5px solid #888;border-radius:6px;padding:3px 16px;font-weight:bold;background:#f5f5f5;direction:ltr;display:inline-block;min-width:90px;text-align:center}
+.rc-checks{display:flex;gap:20px;align-items:center;font-weight:bold;font-size:.92rem}
+.rcpt-decor{display:flex;justify-content:center;margin-top:8px}
+.rcpt-decor span{width:52px;height:32px;border-radius:50%;display:inline-block;opacity:.8}
 @media print{
   body{background:white}
   #print-screen{background:white;padding:0}
+  #receipt-screen>div{background:white !important;padding:0 !important;min-height:0 !important}
   .pactions,.lang-btn,.top-bar{display:none}
   .inv-print{box-shadow:none;width:100%;padding:16mm 8mm 8mm;min-height:0}
+  .rcpt-print{box-shadow:none;width:100%;margin-top:10mm}
   #print-datetime{position:fixed;bottom:0;left:0;right:0;margin:0}
 }
 /* الهوامش العلوية والسفلية صفر: تمنع المتصفح من طباعة سطريه (التاريخ أعلى والرابط أسفل) — المسافات معوضة داخل الفاتورة */
@@ -701,6 +713,56 @@ const fbDB   = firebase.firestore();
   </div>
 </div>
 
+<!-- ═══════════════ RECEIPT VOUCHER — سند قبض -->
+<div id="receipt-screen" class="screen">
+  <div style="min-height:100vh;background:#aaa;padding:18px">
+    <div class="pactions">
+      <button class="btn btn-success" onclick="window.print()">🖨️ طباعة السند</button>
+      <button class="btn btn-primary" onclick="showScreen('dashboard')">← رجوع</button>
+    </div>
+    <div class="rcpt-print">
+      <div class="rcpt-hdr">
+        <div style="display:flex;flex-direction:column;gap:7px;font-size:.85rem">
+          <div><span style="font-weight:bold">سند رقم: </span><span class="rc-box" id="rc-num"></span></div>
+          <div><span style="font-weight:bold">التاريخ / </span><span class="rc-box" id="rc-date"></span></div>
+        </div>
+        <div class="inv-co" style="text-align:center">
+          <div class="name" id="rc-co-name"></div>
+          <div class="sub" id="rc-co-sub"></div>
+          <div class="web" id="rc-co-web"></div>
+        </div>
+        <div>
+          <img id="rcpt-hdr-img" alt="" style="display:none;max-height:58px;object-fit:contain">
+          <svg id="rcpt-hdr-svg" width="110" height="38" viewBox="0 0 340 116"><use href="#level7logo"/></svg>
+        </div>
+      </div>
+      <div style="text-align:center;font-weight:800;color:#1b5e20;font-size:1.1rem;margin-bottom:14px;letter-spacing:1px">سند قبض</div>
+      <div class="rc-row"><div class="rc-lbl">استلمت من:</div><div class="rc-val" id="rc-from"></div></div>
+      <div class="rc-row"><div class="rc-lbl">المبلغ:</div><div class="rc-val" id="rc-amount"></div></div>
+      <div class="rc-row"><div class="rc-lbl">ذلك قيمة:</div><div class="rc-val" id="rc-desc"></div></div>
+      <div class="rc-row"><div class="rc-lbl">المبلغ المستحق:</div><div class="rc-val" id="rc-due-words"></div></div>
+      <div class="rc-row" style="align-items:center;justify-content:space-between;gap:18px">
+        <div style="display:flex;gap:10px;flex:1;align-items:flex-start">
+          <div class="rc-lbl">المبلغ المدفوع:</div>
+          <div class="rc-val" id="rc-paid-words"></div>
+        </div>
+      </div>
+      <div class="rc-row" style="align-items:flex-end;justify-content:space-between;gap:18px">
+        <div>
+          <div style="font-weight:bold;color:#1b5e20;margin-bottom:8px">تم دفع هذا المبلغ عن طريق:</div>
+          <div class="rc-checks"><span id="rc-cash">☑ نقدًا</span><span id="rc-bank">☐ تحويل بنكي</span></div>
+        </div>
+        <div style="text-align:center;min-width:160px">
+          <div style="height:44px"></div>
+          <div style="border-top:1.5px solid #555;padding-top:4px;font-weight:bold;font-size:.86rem">توقيع المستلم</div>
+        </div>
+      </div>
+      <div class="rc-row"><div class="rc-lbl">المبلغ المتبقي:</div><div class="rc-val" id="rc-remain"></div></div>
+      <div class="rcpt-decor"><span style="background:#90caf9;margin-left:-16px"></span><span style="background:#aed581"></span></div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ SVG LOGO DEFINITION (brand-style recreation) -->
 <svg width="0" height="0" style="position:absolute">
   <defs>
@@ -974,6 +1036,12 @@ const fbDB   = firebase.firestore();
         </select>
       </div>
       <div class="fg"><label data-i18n="lblAmount">المبلغ <span class="req">*</span></label><input type="number" id="pay-amount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>طريقة الدفع</label>
+        <select id="pay-method">
+          <option value="نقدًا">💵 نقدًا</option>
+          <option value="تحويل بنكي">🏦 تحويل بنكي</option>
+        </select>
+      </div>
       <div class="fg"><label data-i18n="lblNotes">ملاحظات</label><textarea id="pay-notes" style="min-height:50px"></textarea></div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-success" style="flex:1" onclick="savePayment()" data-i18n="btnSave">✔ حفظ</button>
@@ -997,7 +1065,7 @@ function lsDel(k)      { localStorage.removeItem(lsKey(k)); _dirtyKeys.add(k); s
 // ── مزامنة سحابية: كل بيانات المنشأة تُحفظ في Firestore وتُستعاد من أي جهاز
 const CLOUD_KEYS = ['invoices','deletedInvoices','customers','products','payments',
                     'nextInvNum','nextProdSeq','appSettings','logoImg','bgImg',
-                    'logoWidth','bgWidth','bgOpacity','branches'];
+                    'logoWidth','bgWidth','bgOpacity','branches','nextRcptNum'];
 let _cloudTimer = null;
 function scheduleCloudSave() {
   if (!currentAccId) return;
@@ -1051,7 +1119,7 @@ function _dailyBackup(uid, data) {
 
 // ═══════════════ STATE (loaded per account)
 let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], branches=[];
-let nextInvNum=1, nextProdSeq=1;
+let nextInvNum=1, nextProdSeq=1, nextRcptNum=1;
 let lang = localStorage.getItem('lang') || 'ar';
 const DEF_SETTINGS = {
   coName:'LEVEL7   لتلبية احتياجات المتخصصين والهواه في مجال الخياطة',
@@ -1068,6 +1136,7 @@ function loadAccountData() {
   payments        = JSON.parse(lsGet('payments','[]'));
   branches        = JSON.parse(lsGet('branches','[]'));
   nextInvNum      = parseInt(lsGet('nextInvNum','1'));
+  nextRcptNum     = parseInt(lsGet('nextRcptNum','1'));
   nextProdSeq     = parseInt(lsGet('nextProdSeq','1'));
   settings        = {...DEF_SETTINGS, ...JSON.parse(lsGet('appSettings','{}'))};
 }
@@ -2502,6 +2571,7 @@ const PERM_DEFS = [
 const DEFAULT_PERMS = { invoices:true, products:true, customers:true, analytics:true, archive:true, settings:false };
 const PERM_SCREENS = {
   'invoice-list':'invoices', 'invoice-form-screen':'invoices', 'print-screen':'invoices',
+  'receipt-screen':'customers',
   'products-screen':'products', 'analytics-screen':'analytics',
   'archive-screen':'archive', 'settings-screen':'settings',
 };
@@ -2792,7 +2862,7 @@ function renderStatement(clientId) {
   const cPays = payments.filter(p=>String(p.clientId)===String(clientId));
   const entries = [
     ...cInvs.map(i=>({date:i.date,type:'inv',label:(ar?'فاتورة #':'Invoice #')+(i.clientInvNum||i.invNum)+' ('+i.type+')',debit:i.type==='فاتورة مرتجع'?0:i.grand,credit:i.type==='فاتورة مرتجع'?i.grand:0})),
-    ...cPays.map(p=>({date:p.date,type:'pay',label:p.type+(p.notes?' — '+p.notes:''),debit:p.type==='استرداد'?p.amount:0,credit:p.type==='دفعة'?p.amount:0})),
+    ...cPays.map(p=>({date:p.date,type:'pay',pid:p.id,isRcpt:p.type==='دفعة',label:p.type+(p.notes?' — '+p.notes:''),debit:p.type==='استرداد'?p.amount:0,credit:p.type==='دفعة'?p.amount:0})),
   ].sort((a,b)=>a.date>b.date?1:-1);
   let bal=0;
   const list = document.getElementById('stmt-list');
@@ -2809,6 +2879,7 @@ function renderStatement(clientId) {
         <span class="dr">${e.debit?formatNum(e.debit)+(ar?' ر.س':' SAR'):''}</span>
         <span class="cr">${e.credit?formatNum(e.credit)+(ar?' ر.س':' SAR'):''}</span>
         <span style="font-size:.82rem;color:#555">${ar?'رصيد':'Bal'}: <b class="${bal>=0?'balance-positive':'balance-negative'}">${formatNum(Math.abs(bal))}</b></span>
+        ${e.isRcpt?`<button class="btn btn-info btn-sm" onclick="printReceiptById(${e.pid})" title="${ar?'طباعة سند القبض':'Print receipt'}">🖨 ${ar?'سند':'Receipt'}</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -2838,17 +2909,99 @@ function savePayment() {
   if (!amount) { alert(ar?'الرجاء إدخال المبلغ':'Enter amount'); return; }
   const clientId = parseInt(document.getElementById('pay-client-id').value);
   if (!clientId) { alert(ar?'لا يوجد عميل محدد':'No customer selected'); return; }
-  payments.push({
+  const pay = {
     id:Date.now(), clientId,
     date:document.getElementById('pay-date').value,
     type:document.getElementById('pay-type').value,
     amount,
+    method:document.getElementById('pay-method').value,
     notes:document.getElementById('pay-notes').value.trim(),
-  });
+  };
+  if (pay.type === 'دفعة') { pay.rcptNum = nextRcptNum++; lsSet('nextRcptNum', String(nextRcptNum)); }
+  payments.push(pay);
   save('payments');
   closeModal('payment-modal');
   if (stmtClientId) renderStatement(stmtClientId);
-  alert(ar?'تم حفظ الدفعة ✔':'Payment saved ✔');
+  if (pay.type === 'دفعة' && confirm(ar?'تم حفظ الدفعة ✔\nطباعة سند القبض الرسمي؟':'Saved ✔ Print receipt voucher?')) {
+    printReceiptById(pay.id);
+  } else if (pay.type !== 'دفعة') {
+    alert(ar?'تم حفظ الحركة ✔':'Saved ✔');
+  }
+}
+
+// ═══════════════ سند القبض الرسمي
+// تفقيط: تحويل الرقم لكلمات عربية (مثل: ثمانية آلاف وستمائة وسبعة وستون)
+function tafqeet(n) {
+  n = Math.round(n);
+  if (!n) return 'صفر';
+  const ones = ['','واحد','اثنان','ثلاثة','أربعة','خمسة','ستة','سبعة','ثمانية','تسعة','عشرة',
+    'أحد عشر','اثنا عشر','ثلاثة عشر','أربعة عشر','خمسة عشر','ستة عشر','سبعة عشر','ثمانية عشر','تسعة عشر'];
+  const tens  = ['','','عشرون','ثلاثون','أربعون','خمسون','ستون','سبعون','ثمانون','تسعون'];
+  const hunds = ['','مائة','مائتان','ثلاثمائة','أربعمائة','خمسمائة','ستمائة','سبعمائة','ثمانمائة','تسعمائة'];
+  function under1000(x) {
+    const parts = [];
+    const h = Math.floor(x/100), r = x%100;
+    if (h) parts.push(hunds[h]);
+    if (r) {
+      if (r < 20) parts.push(ones[r]);
+      else { const u = r%10, t = Math.floor(r/10); parts.push(u ? ones[u]+' و'+tens[t] : tens[t]); }
+    }
+    return parts.join(' و');
+  }
+  const scales = [[1000000000,'مليار','ملياران','مليارات'],[1000000,'مليون','مليونان','ملايين'],[1000,'ألف','ألفان','آلاف']];
+  const out = [];
+  for (const [v, one, two, many] of scales) {
+    const q = Math.floor(n/v); n %= v;
+    if (!q) continue;
+    if (q === 1) out.push(one);
+    else if (q === 2) out.push(two);
+    else if (q <= 10) out.push(under1000(q)+' '+many);
+    else out.push(under1000(q)+' '+one);
+  }
+  if (n) out.push(under1000(n));
+  return out.join(' و');
+}
+// الرصيد الحالي للعميل (موجب = عليه مبلغ)
+function clientBalance(cid) {
+  let bal = 0;
+  invoices.forEach(i=>{ if (String(i.clientId)===String(cid)) bal += (i.type==='فاتورة مرتجع' ? -i.grand : i.grand); });
+  payments.forEach(p=>{ if (String(p.clientId)===String(cid)) bal += (p.type==='استرداد' ? p.amount : -p.amount); });
+  return bal;
+}
+function printReceiptById(pid) {
+  const p = payments.find(x=>x.id===pid);
+  if (!p) return;
+  closeModal('statement-modal'); closeModal('customers-modal'); closeModal('payment-modal');
+  printReceipt(p);
+}
+function printReceipt(p) {
+  // السندات القديمة بلا رقم تأخذ الرقم التالي عند أول طباعة
+  if (!p.rcptNum) { p.rcptNum = nextRcptNum++; lsSet('nextRcptNum', String(nextRcptNum)); save('payments'); }
+  const c = customers.find(x=>String(x.id)===String(p.clientId));
+  document.getElementById('rc-num').textContent  = String(p.rcptNum).padStart(6,'0');
+  document.getElementById('rc-date').textContent = fmtDate(p.date);
+  document.getElementById('rc-from').textContent = c ? c.name : '-';
+  document.getElementById('rc-amount').textContent = formatNum(p.amount)+' ريال سعودي';
+  document.getElementById('rc-desc').textContent = p.notes || 'دفعة من الحساب';
+  const remain = Math.max(0, clientBalance(p.clientId));
+  const due = remain + p.amount;
+  document.getElementById('rc-due-words').textContent  = 'فقط مبلغ وقدره: '+tafqeet(due)+' ريالاً سعوديًا لا غير.';
+  document.getElementById('rc-paid-words').textContent = 'فقط مبلغ وقدره: '+tafqeet(p.amount)+' ريالاً سعوديًا لا غير.';
+  document.getElementById('rc-remain').textContent = remain > 0
+    ? formatNum(remain)+' ريال سعودي — '+tafqeet(remain)+' ريالاً سعوديًا'
+    : 'لا يوجد';
+  const bank = p.method === 'تحويل بنكي';
+  document.getElementById('rc-cash').textContent = (bank?'☐':'☑')+' نقدًا';
+  document.getElementById('rc-bank').textContent = (bank?'☑':'☐')+' تحويل بنكي';
+  // ترويسة الشركة وشعارها (المخصص إن وُجد)
+  document.getElementById('rc-co-name').textContent = settings.coName;
+  document.getElementById('rc-co-sub').textContent  = settings.coSub;
+  document.getElementById('rc-co-web').textContent  = settings.coWeb;
+  const logo = lsGet('logoImg', null);
+  const img = document.getElementById('rcpt-hdr-img'), svg = document.getElementById('rcpt-hdr-svg');
+  if (logo) { img.src = logo; img.style.display='block'; svg.style.display='none'; }
+  else { img.style.display='none'; svg.style.display='block'; }
+  showScreen('receipt-screen');
 }
 
 // ═══════════════ BRANDING (logo & background images + sizes)
