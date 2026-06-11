@@ -101,8 +101,8 @@ const fbAuth = firebase.auth();
     <div class="data-table-wrap">
       <table>
         <thead><tr>
-          <th>المنشأة</th><th>المستخدم</th><th>الإيميل</th><th>تاريخ التسجيل</th>
-          <th>نهاية الاشتراك</th><th>الحالة</th><th>إجراءات</th>
+          <th>المنشأة</th><th>المستخدم</th><th>الإيميل</th><th>🏬 فروع</th><th>👥 مستخدمون</th><th>📦 أصناف</th>
+          <th>تاريخ التسجيل</th><th>نهاية الاشتراك</th><th>الحالة</th><th>إجراءات</th>
         </tr></thead>
         <tbody id="admin-tbody"></tbody>
       </table>
@@ -169,14 +169,27 @@ function adminChangePass(){
 }
 
 // ─── جلب وإدارة المنشآت من Firestore
+let membersByTenant = {};
 function adminLoadAccounts(){
-  fbDB.collection('accounts').get().then(q=>{
+  Promise.all([
+    fbDB.collection('accounts').get(),
+    fbDB.collection('members').get().catch(()=>({ docs: [] })),
+  ]).then(([q, mq])=>{
     accounts = q.docs.map(d=>({ id:d.id, ...d.data() }));
+    membersByTenant = {};
+    mq.docs.forEach(d=>{
+      const t = d.data().tenantId;
+      membersByTenant[t] = (membersByTenant[t]||0) + 1;
+    });
     renderAdminPanel();
   }).catch(e=>{
     document.getElementById('admin-tbody').innerHTML =
-      '<tr><td colspan="7" style="color:#c62828">تعذر جلب البيانات: '+escHtml(e.message||'')+'</td></tr>';
+      '<tr><td colspan="10" style="color:#c62828">تعذر جلب البيانات: '+escHtml(e.message||'')+'</td></tr>';
   });
+}
+// عدّ عناصر مخزنة كنص JSON داخل بيانات المنشأة (الفروع، الأصناف...)
+function _cntData(a, key){
+  try { return (JSON.parse((a.data||{})[key]||'[]')).length; } catch(_) { return 0; }
 }
 function renderAdminPanel(){
   const tb = document.getElementById('admin-tbody');
@@ -199,6 +212,9 @@ function renderAdminPanel(){
       <td><strong>${escHtml(a.biz)}</strong></td>
       <td>${escHtml(a.user)}</td>
       <td style="direction:ltr">${escHtml(a.email||'-')}</td>
+      <td>${_cntData(a,'branches')}</td>
+      <td>${1 + (membersByTenant[a.id]||0)}</td>
+      <td>${_cntData(a,'products')}</td>
       <td>${created}</td>
       <td><input type="date" value="${a.subEnd||''}" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit"></td>
       <td>${st}</td>

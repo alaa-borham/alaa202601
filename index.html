@@ -117,6 +117,8 @@ body.ltr .lang-btn{left:auto;right:18px}
 .side-panel{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-start;justify-content:flex-end}
 /* نموذج العميل يُفتح فوق نافذة قائمة العملاء (z-index أعلى من .moverlay) */
 #customer-panel{z-index:350}
+/* نافذتا الفروع وQR تُفتحان فوق نوافذ أخرى */
+#branches-modal,#qr-modal{z-index:360}
 .side-panel.open{display:flex}
 .spb{background:white;width:100%;max-width:420px;height:100%;overflow-y:auto;box-shadow:-4px 0 22px rgba(0,0,0,.2);animation:slideIn .25s ease}
 @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
@@ -377,18 +379,18 @@ const fbDB   = firebase.firestore();
       <h1 data-i18n="heroTitle">مرحباً بك في نظام LEVEL7 👋</h1>
       <p data-i18n="appSubtitle">نظام إدارة الفواتير والمستودع</p>
     </div>
-    <button class="hero-cta" onclick="newInvoice()" data-i18n="heroCta">➕ فاتورة جديدة</button>
+    <button class="hero-cta" onclick="newInvoice()" data-i18n="heroCta" data-perm="invoices">➕ فاتورة جديدة</button>
   </div>
   <div class="dash-stats" id="dash-stats" style="margin:0 auto 22px"></div>
   <div class="dash-cards">
-    <div class="dash-card" onclick="showScreen('invoice-list')"><div class="icon">📋</div><h3 data-i18n="invoices">الفواتير</h3><p data-i18n="invoicesSub">قائمة الفواتير</p></div>
-    <div class="dash-card" onclick="newInvoice()"><div class="icon">➕</div><h3 data-i18n="newInvoice">فاتورة جديدة</h3><p data-i18n="newInvoiceSub">إنشاء فاتورة</p></div>
-    <div class="dash-card" onclick="showScreen('products-screen')"><div class="icon">📦</div><h3 data-i18n="warehouse">المستودع</h3><p data-i18n="warehouseSub">الأصناف والمخزون</p></div>
-    <div class="dash-card" onclick="showCustomers()"><div class="icon">👥</div><h3 data-i18n="customers">العملاء</h3><p data-i18n="customersSub">بيانات العملاء</p></div>
-    <div class="dash-card" onclick="showScreen('analytics-screen')"><div class="icon">📊</div><h3 data-i18n="analytics">التحليلات</h3><p data-i18n="analyticsSub">إحصائيات وتقارير</p></div>
-    <div class="dash-card" onclick="showScreen('archive-screen')"><div class="icon">🗂️</div><h3 data-i18n="archive">الأرشيف</h3><p data-i18n="archiveSub">الفواتير المحذوفة</p></div>
-    <div class="dash-card" onclick="openBranding()"><div class="icon">🎨</div><h3 data-i18n="branding">الشعار والخلفية</h3><p data-i18n="brandingSub">صور وقياسات</p></div>
-    <div class="dash-card" onclick="showScreen('settings-screen')"><div class="icon">⚙️</div><h3 data-i18n="settings">الإعدادات</h3><p data-i18n="settingsSub">ضبط النظام</p></div>
+    <div class="dash-card" onclick="showScreen('invoice-list')" data-perm="invoices"><div class="icon">📋</div><h3 data-i18n="invoices">الفواتير</h3><p data-i18n="invoicesSub">قائمة الفواتير</p></div>
+    <div class="dash-card" onclick="newInvoice()" data-perm="invoices"><div class="icon">➕</div><h3 data-i18n="newInvoice">فاتورة جديدة</h3><p data-i18n="newInvoiceSub">إنشاء فاتورة</p></div>
+    <div class="dash-card" onclick="showScreen('products-screen')" data-perm="products"><div class="icon">📦</div><h3 data-i18n="warehouse">المستودع</h3><p data-i18n="warehouseSub">الأصناف والمخزون</p></div>
+    <div class="dash-card" onclick="showCustomers()" data-perm="customers"><div class="icon">👥</div><h3 data-i18n="customers">العملاء</h3><p data-i18n="customersSub">بيانات العملاء</p></div>
+    <div class="dash-card" onclick="showScreen('analytics-screen')" data-perm="analytics"><div class="icon">📊</div><h3 data-i18n="analytics">التحليلات</h3><p data-i18n="analyticsSub">إحصائيات وتقارير</p></div>
+    <div class="dash-card" onclick="showScreen('archive-screen')" data-perm="archive"><div class="icon">🗂️</div><h3 data-i18n="archive">الأرشيف</h3><p data-i18n="archiveSub">الفواتير المحذوفة</p></div>
+    <div class="dash-card" onclick="openBranding()" data-perm="settings"><div class="icon">🎨</div><h3 data-i18n="branding">الشعار والخلفية</h3><p data-i18n="brandingSub">صور وقياسات</p></div>
+    <div class="dash-card" onclick="showScreen('settings-screen')" data-perm="settings"><div class="icon">⚙️</div><h3 data-i18n="settings">الإعدادات</h3><p data-i18n="settingsSub">ضبط النظام</p></div>
   </div>
 </div>
 
@@ -687,6 +689,10 @@ const fbDB   = firebase.firestore();
       <div style="max-width:245px">
         <div class="gw"><span class="gl">الإجمالي</span><span class="gv" id="p-grand"></span></div>
       </div>
+      <div id="p-qr-wrap" style="display:none;position:absolute;left:12mm;bottom:14mm;text-align:center;z-index:1">
+        <img id="p-qr" alt="QR" style="width:24mm;height:24mm;display:block">
+        <div style="font-size:.6rem;color:#888;margin-top:1px">رمز الفاتورة</div>
+      </div>
       <div id="p-terms" style="display:none;margin-top:16px;border-top:1px dashed #bbb;padding-top:8px;font-size:.76rem;color:#666;text-align:center;white-space:pre-line"></div>
       <div id="print-datetime"></div>
     </div>
@@ -804,19 +810,66 @@ const fbDB   = firebase.firestore();
   </div>
 </div>
 
+<!-- ═══════════════ MODAL: PRODUCT QR -->
+<div class="moverlay" id="qr-modal">
+  <div class="mbox" style="max-width:340px">
+    <div class="mhdr"><h3>🔳 ملصق الصنف</h3><button class="mcls" onclick="closeModal('qr-modal')">✕</button></div>
+    <div id="qr-body" style="padding:20px;text-align:center">
+      <div id="qr-canvas-wrap" style="display:flex;justify-content:center;margin-bottom:10px"></div>
+      <div id="qr-prod-name" style="font-weight:700;font-size:.95rem"></div>
+      <div id="qr-prod-code" style="color:#666;font-size:.85rem;direction:ltr;margin-top:2px"></div>
+      <button class="btn btn-primary" style="margin-top:14px" onclick="printProductQR()">🖨️ طباعة الملصق</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: BRANCHES (فروع المنشأة) -->
+<div class="moverlay" id="branches-modal">
+  <div class="mbox" style="max-width:520px">
+    <div class="mhdr"><h3>🏬 فروع المنشأة</h3><button class="mcls" onclick="closeModal('branches-modal')">✕</button></div>
+    <div style="padding:13px;border-bottom:1px solid #eee">
+      <div style="display:flex;gap:8px">
+        <input type="text" id="br-name" placeholder="اسم الفرع — مثال: فرع الرياض"
+          style="flex:1;padding:8px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"
+          onkeydown="if(event.key==='Enter')addBranch()">
+        <button class="btn btn-success" onclick="addBranch()">إضافة فرع</button>
+      </div>
+      <div id="br-err" style="color:#c62828;font-size:.8rem;min-height:16px;margin-top:6px"></div>
+    </div>
+    <div class="mlist">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الفرع</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الموظفون فيه</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">إجراءات</th>
+        </tr></thead>
+        <tbody id="branches-tbody"></tbody>
+      </table>
+      <div id="branches-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا توجد فروع بعد — المنشأة تعمل كمركز رئيسي واحد</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ MODAL: MEMBERS (مستخدمو المنشأة) -->
 <div class="moverlay" id="members-modal">
   <div class="mbox" style="max-width:640px">
     <div class="mhdr"><h3>👥 مستخدمو المنشأة</h3><button class="mcls" onclick="closeModal('members-modal')">✕</button></div>
     <div style="padding:13px;border-bottom:1px solid #eee">
-      <div style="font-size:.78rem;color:#777;margin-bottom:10px">أضف موظفيك ليدخلوا بحساباتهم الخاصة على بيانات منشأتك — لا يرون أي منشأة أخرى، ولا يمكنهم إدارة المستخدمين.</div>
-      <div style="display:grid;grid-template-columns:1fr 1.3fr 1fr auto;gap:8px;align-items:end">
-        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">اسم الموظف</label>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+        <div style="font-size:.78rem;color:#777">أضف موظفيك ليدخلوا بحساباتهم الخاصة على بيانات منشأتك فقط.</div>
+        <button class="btn btn-info btn-sm" onclick="showBranches()">🏬 إدارة الفروع</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end">
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">اسم الموظف <span class="req">*</span></label>
           <input type="text" id="m-name" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
-        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">البريد الإلكتروني</label>
-          <input type="email" id="m-email" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit;direction:ltr"></div>
-        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">كلمة المرور</label>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">اسم المستخدم (للدخول) <span class="req">*</span></label>
+          <input type="text" id="m-username" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit;direction:ltr" placeholder="emp1"></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">كلمة المرور <span class="req">*</span></label>
           <input type="text" id="m-pass" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit;direction:ltr" placeholder="6+ أحرف"></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">الفرع</label>
+          <select id="m-branch" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></select></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">البريد الإلكتروني (اختياري)</label>
+          <input type="email" id="m-email" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit;direction:ltr" placeholder="لاستعادة كلمة المرور"></div>
         <button class="btn btn-success" onclick="addMember()" style="height:36px" id="m-add-btn">إضافة</button>
       </div>
       <div id="m-err" style="color:#c62828;font-size:.8rem;min-height:16px;margin-top:6px"></div>
@@ -825,8 +878,8 @@ const fbDB   = firebase.firestore();
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
           <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الاسم</th>
-          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">البريد</th>
-          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">أُضيف في</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الدخول</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الفرع</th>
           <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">إجراءات</th>
         </tr></thead>
         <tbody id="members-tbody"></tbody>
@@ -942,7 +995,7 @@ function lsDel(k)      { localStorage.removeItem(lsKey(k)); scheduleCloudSave();
 // ── مزامنة سحابية: كل بيانات المنشأة تُحفظ في Firestore وتُستعاد من أي جهاز
 const CLOUD_KEYS = ['invoices','deletedInvoices','customers','products','payments',
                     'nextInvNum','nextProdSeq','appSettings','logoImg','bgImg',
-                    'logoWidth','bgWidth','bgOpacity'];
+                    'logoWidth','bgWidth','bgOpacity','branches'];
 let _cloudTimer = null;
 function scheduleCloudSave() {
   if (!currentAccId) return;
@@ -972,7 +1025,7 @@ function cloudLoad(uid) {
 }
 
 // ═══════════════ STATE (loaded per account)
-let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[];
+let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], branches=[];
 let nextInvNum=1, nextProdSeq=1;
 let lang = localStorage.getItem('lang') || 'ar';
 const DEF_SETTINGS = {
@@ -988,6 +1041,7 @@ function loadAccountData() {
   customers       = JSON.parse(lsGet('customers','[]'));
   products        = JSON.parse(lsGet('products','[]'));
   payments        = JSON.parse(lsGet('payments','[]'));
+  branches        = JSON.parse(lsGet('branches','[]'));
   nextInvNum      = parseInt(lsGet('nextInvNum','1'));
   nextProdSeq     = parseInt(lsGet('nextProdSeq','1'));
   settings        = {...DEF_SETTINGS, ...JSON.parse(lsGet('appSettings','{}'))};
@@ -1201,10 +1255,13 @@ function _afterFirebaseLogin(user) {
       localStorage.setItem(lsKey('appSettings'), JSON.stringify(settings));
     }
     applyCompanyInfo();
-    document.getElementById('acc-name').textContent = '👤 '+profile.biz + (member ? ' — '+member.name : '');
+    document.getElementById('acc-name').textContent = '👤 '+profile.biz
+      + (member ? ' — '+member.name + (member.branchName ? ' (🏬 '+member.branchName+')' : '') : '');
     // إدارة مستخدمي المنشأة متاحة لصاحبها فقط
     const mb = document.getElementById('members-btn');
     if (mb) mb.style.display = member ? 'none' : 'block';
+    // تطبيق صلاحيات الموظف على بطاقات وأزرار الواجهة
+    applyMemberPerms();
     // إشعار قرب انتهاء الاشتراك (آخر 7 أيام)
     const sn = document.getElementById('sub-notice');
     if (sn && profile.subEnd) {
@@ -1585,6 +1642,8 @@ function setLang(l) {
 
 // ═══════════════ NAV
 function showScreen(id) {
+  const need = PERM_SCREENS[id];
+  if (need && !canAccess(need)) { permDenied(need); return; }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (id === 'invoice-list')     { populateClientFilter(); renderInvoiceList(); }
@@ -1886,6 +1945,7 @@ function renderProducts() {
       </div>
       <div class="prod-card-footer">
         <button class="btn btn-primary btn-sm" style="flex:1" onclick="openProductPanel(${p.id})">✏ ${ar?'تعديل':'Edit'}</button>
+        <button class="btn btn-info btn-sm" onclick="showProductQR(${p.id})" title="${ar?'ملصق QR':'QR label'}">🔳</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id})">🗑</button>
       </div>
     </div>`;
@@ -2254,6 +2314,7 @@ function printInvoice(inv) {
   const terms = document.getElementById('p-terms');
   terms.textContent = settings.invTerms||'';
   terms.style.display = settings.invTerms ? 'block' : 'none';
+  _setInvoiceQR(inv);
   const payEl = document.getElementById('p-payment');
   const payCell = document.getElementById('p-pay-cell');
   payEl.textContent = inv.payment||'كاش';
@@ -2402,71 +2463,197 @@ function restoreInvoice(id) {
 function viewArchivedInvoice(id) { const inv=deletedInvoices.find(i=>i.id===id); if(inv) printInvoice(inv); }
 
 // ═══════════════ CUSTOMERS
+// ═══════════════ الصلاحيات: ما يستطيع كل موظف الوصول إليه بحسب مهامه
+const PERM_DEFS = [
+  ['invoices',  '🧾 الفواتير (عرض وإنشاء وطباعة)'],
+  ['products',  '📦 المستودع والأصناف'],
+  ['customers', '👥 العملاء والكشوف والدفعات'],
+  ['analytics', '📊 التحليلات والتقارير'],
+  ['archive',   '🗂️ الأرشيف'],
+  ['settings',  '⚙️ الإعدادات والشعار (حساس)'],
+];
+const DEFAULT_PERMS = { invoices:true, products:true, customers:true, analytics:true, archive:true, settings:false };
+const PERM_SCREENS = {
+  'invoice-list':'invoices', 'invoice-form-screen':'invoices', 'print-screen':'invoices',
+  'products-screen':'products', 'analytics-screen':'analytics',
+  'archive-screen':'archive', 'settings-screen':'settings',
+};
+function canAccess(area) {
+  if (!currentMember) return true; // صاحب المنشأة: كل الصلاحيات
+  const p = { ...DEFAULT_PERMS, ...(currentMember.perms||{}) };
+  return p[area] === true;
+}
+function permDenied(area) {
+  const lbl = (PERM_DEFS.find(d=>d[0]===area)||['',''])[1];
+  alert('🚫 ليس لديك صلاحية الوصول إلى: ' + lbl + '\nتواصل مع صاحب المنشأة');
+}
+// إخفاء بطاقات وأزرار الأقسام غير المصرح بها للموظف
+function applyMemberPerms() {
+  document.querySelectorAll('[data-perm]').forEach(el=>{
+    el.style.display = canAccess(el.dataset.perm) ? '' : 'none';
+  });
+}
+
 // ═══════════════ مستخدمو المنشأة (موظفون يدخلون بحساباتهم على بيانات منشأتهم فقط)
 function showMembers() {
   if (currentMember) return; // إدارة المستخدمين لصاحب المنشأة فقط
+  fillBranchSelect();
   renderMembers();
   document.getElementById('members-modal').classList.add('open');
 }
+// ─── الفروع
+function showBranches() { renderBranches(); document.getElementById('branches-modal').classList.add('open'); }
+function fillBranchSelect() {
+  const sel = document.getElementById('m-branch');
+  sel.innerHTML = '<option value="">المركز الرئيسي</option>' +
+    branches.map(b=>`<option value="${b.id}">${escHtml(b.name)}</option>`).join('');
+}
+function addBranch() {
+  const name = document.getElementById('br-name').value.trim();
+  const errEl = document.getElementById('br-err');
+  if (!name) { errEl.textContent = 'اكتب اسم الفرع'; return; }
+  if (branches.find(b=>b.name===name)) { errEl.textContent = 'الفرع موجود مسبقاً'; return; }
+  branches.push({ id: Date.now(), name });
+  save('branches');
+  errEl.textContent = '';
+  document.getElementById('br-name').value = '';
+  renderBranches(); fillBranchSelect();
+}
+function deleteBranch(id) {
+  const used = _membersCache.some(m=>String(m.branchId)===String(id));
+  if (used) { alert('لا يمكن حذف فرع به موظفون — انقلهم أو احذفهم أولاً'); return; }
+  if (!confirm('حذف الفرع؟')) return;
+  branches = branches.filter(b=>b.id!==id);
+  save('branches');
+  renderBranches(); fillBranchSelect();
+}
+function renderBranches() {
+  document.getElementById('branches-empty').style.display = branches.length ? 'none' : 'block';
+  document.getElementById('branches-tbody').innerHTML = branches.map(b=>{
+    const cnt = _membersCache.filter(m=>String(m.branchId)===String(b.id)).length;
+    return `<tr>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${escHtml(b.name)}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${cnt}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">
+        <button class="btn btn-danger btn-sm" onclick="deleteBranch(${b.id})">حذف</button>
+      </td>
+    </tr>`;}).join('');
+}
+let _membersCache = [];
 function renderMembers() {
   fbDB.collection('members').where('tenantId','==',currentAccId).get().then(q=>{
-    const rows = q.docs.map(d=>({ id:d.id, ...d.data() }));
-    document.getElementById('members-empty').style.display = rows.length ? 'none' : 'block';
-    document.getElementById('members-tbody').innerHTML = rows.map(m=>`
+    _membersCache = q.docs.map(d=>({ id:d.id, ...d.data() }));
+    document.getElementById('members-empty').style.display = _membersCache.length ? 'none' : 'block';
+    document.getElementById('members-tbody').innerHTML = _membersCache.map(m=>{
+      const perms = { ...DEFAULT_PERMS, ...(m.perms||{}) };
+      const permBoxes = PERM_DEFS.map(([key,label])=>`
+        <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer;padding:3px 0">
+          <input type="checkbox" ${perms[key]?'checked':''} onchange="setMemberPerm('${m.id}','${key}',this.checked)">
+          <span>${label}</span>
+        </label>`).join('');
+      const loginAs = m.username ? m.username : (m.email||'-');
+      return `
       <tr>
-        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${escHtml(m.name)}</td>
-        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;direction:ltr">${escHtml(m.email)}</td>
-        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${m.createdAt ? fmtDate(m.createdAt.split('T')[0]) : '-'}</td>
+        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${escHtml(m.name)}
+          ${m.email?`<div style="font-size:.7rem;color:#888;direction:ltr">${escHtml(m.email)}</div>`:''}</td>
+        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;direction:ltr">${escHtml(loginAs)}</td>
+        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${m.branchName ? '🏬 '+escHtml(m.branchName) : 'المركز الرئيسي'}</td>
         <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">
-          <button class="btn btn-warning btn-sm" onclick="resetMemberPass('${escHtml(m.email)}')">🔑 كلمة المرور</button>
+          <button class="btn btn-primary btn-sm" onclick="togglePermBox('${m.id}')">⚙️ صلاحيات</button>
+          <button class="btn btn-warning btn-sm" onclick="resetMemberPass('${m.id}')">🔑</button>
           <button class="btn btn-danger btn-sm" onclick="deleteMember('${m.id}','${escHtml(m.name)}')">إلغاء الوصول</button>
         </td>
-      </tr>`).join('');
+      </tr>
+      <tr id="perm-box-${m.id}" style="display:none">
+        <td colspan="4" style="padding:10px 16px;border-bottom:1px solid #eee;background:#f7fbf3">
+          <div style="font-size:.8rem;font-weight:700;color:#2e7d32;margin-bottom:5px">صلاحيات ${escHtml(m.name)} — تُحفظ فوراً وتسري عند دخوله القادم:</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:2px 16px">${permBoxes}</div>
+        </td>
+      </tr>`;}).join('');
   }).catch(e=>{ document.getElementById('m-err').textContent = 'تعذر جلب المستخدمين: ' + (e.message||''); });
+}
+function togglePermBox(uid) {
+  const r = document.getElementById('perm-box-'+uid);
+  r.style.display = r.style.display==='none' ? '' : 'none';
+}
+function setMemberPerm(uid, key, val) {
+  const m = _membersCache.find(x=>x.id===uid); if (!m) return;
+  m.perms = { ...DEFAULT_PERMS, ...(m.perms||{}), [key]: val };
+  fbDB.collection('members').doc(uid).set({ perms: m.perms }, { merge:true })
+    .catch(e=>{ alert('فشل حفظ الصلاحية: '+(e.message||'')); renderMembers(); });
 }
 function addMember() {
   const name  = document.getElementById('m-name').value.trim();
+  const uname = document.getElementById('m-username').value.trim().toLowerCase();
   const email = document.getElementById('m-email').value.trim().toLowerCase();
   const pass  = document.getElementById('m-pass').value;
+  const brId  = document.getElementById('m-branch').value;
+  const br    = branches.find(b=>String(b.id)===brId);
   const errEl = document.getElementById('m-err');
-  if (!name || !email || !pass) { errEl.textContent = 'أكمل كل الحقول'; return; }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { errEl.textContent = 'صيغة البريد غير صحيحة'; return; }
+  if (!name || !uname || !pass) { errEl.textContent = 'الاسم واسم المستخدم وكلمة المرور مطلوبة'; return; }
+  if (!/^[a-z0-9_.-]{3,20}$/.test(uname)) { errEl.textContent = 'اسم المستخدم: 3-20 حرفاً إنجليزياً أو رقماً'; return; }
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { errEl.textContent = 'صيغة البريد غير صحيحة'; return; }
   if (pass.length < 6) { errEl.textContent = 'كلمة المرور 6 أحرف على الأقل'; return; }
   errEl.textContent = '⏳ جارٍ إنشاء حساب الموظف...';
   document.getElementById('m-add-btn').disabled = true;
-  // إنشاء حساب الموظف عبر تطبيق Firebase ثانوي حتى لا تنقطع جلسة المالك
-  const sec = firebase.apps.find(a=>a.name==='sec') || firebase.initializeApp(FB_CONFIG, 'sec');
-  sec.auth().createUserWithEmailAndPassword(email, pass)
-    .then(cred => {
-      const uid = cred.user.uid;
-      return sec.auth().signOut().then(()=>
-        fbDB.collection('members').doc(uid).set({
-          tenantId: currentAccId, name, email, createdAt: new Date().toISOString()
-        }));
+  // البريد اختياري: إن تُرك فارغاً يُنشأ بريد داخلي للدخول باسم المستخدم فقط
+  const loginEmail = email || (uname + '.' + Date.now().toString(36) + '@staff.level7.local');
+  // التأكد من أن اسم المستخدم غير محجوز
+  fbDB.collection('usernames').doc(uname).get().then(s=>{
+    if (s.exists) { errEl.textContent = 'اسم المستخدم محجوز — اختر غيره'; throw '_handled'; }
+    // إنشاء حساب الموظف عبر تطبيق Firebase ثانوي حتى لا تنقطع جلسة المالك
+    const sec = firebase.apps.find(a=>a.name==='sec') || firebase.initializeApp(FB_CONFIG, 'sec');
+    return sec.auth().createUserWithEmailAndPassword(loginEmail, pass)
+      .then(cred => { const uid = cred.user.uid; return sec.auth().signOut().then(()=>uid); });
+  })
+  .then(uid =>
+    fbDB.collection('members').doc(uid).set({
+      tenantId: currentAccId, name, username: uname,
+      email: email || '', loginEmail,
+      branchId: br ? br.id : null, branchName: br ? br.name : '',
+      perms: { ...DEFAULT_PERMS },
+      createdAt: new Date().toISOString()
     })
-    .then(()=>{
-      errEl.textContent = '';
-      ['m-name','m-email','m-pass'].forEach(i=>document.getElementById(i).value='');
-      renderMembers();
-      alert('✔ أُنشئ حساب الموظف بنجاح\nأعطه البريد وكلمة المرور ليدخل من شاشة تسجيل الدخول العادية');
-    })
-    .catch(e=>{ errEl.textContent = _fbErrMsg(e); })
-    .finally(()=>{ document.getElementById('m-add-btn').disabled = false; });
+    .then(()=>fbDB.collection('usernames').doc(uname).set({ email: loginEmail, uid }))
+  )
+  .then(()=>{
+    errEl.textContent = '';
+    ['m-name','m-username','m-email','m-pass'].forEach(i=>document.getElementById(i).value='');
+    renderMembers();
+    alert('✔ أُنشئ حساب الموظف بنجاح\nيدخل من شاشة تسجيل الدخول العادية بـ:\nاسم المستخدم: '+uname+'\nوكلمة المرور التي حددتها');
+  })
+  .catch(e=>{ if (e!=='_handled') errEl.textContent = _fbErrMsg(e); })
+  .finally(()=>{ document.getElementById('m-add-btn').disabled = false; });
 }
 function deleteMember(uid, name) {
   if (!confirm('إلغاء وصول "'+name+'" للمنشأة؟ لن يستطيع الدخول بعدها')) return;
-  fbDB.collection('members').doc(uid).delete()
+  const m = _membersCache.find(x=>x.id===uid);
+  // حذف اسم المستخدم من الفهرس أولاً (القاعدة تتحقق من العضوية قبل حذفها)
+  const delUname = (m && m.username)
+    ? fbDB.collection('usernames').doc(m.username).delete().catch(()=>{})
+    : Promise.resolve();
+  delUname
+    .then(()=>fbDB.collection('members').doc(uid).delete())
     .then(renderMembers)
     .catch(e=>{ document.getElementById('m-err').textContent = 'فشل: ' + (e.message||''); });
 }
-function resetMemberPass(email) {
-  if (!confirm('إرسال رابط تغيير كلمة المرور إلى:\n'+email+' ؟')) return;
-  fbAuth.sendPasswordResetEmail(email)
-    .then(()=>alert('📬 أُرسل الرابط إلى '+email))
+function resetMemberPass(uid) {
+  const m = _membersCache.find(x=>x.id===uid); if (!m) return;
+  if (!m.email) {
+    alert('هذا الموظف بلا بريد إلكتروني — لا يمكن إرسال رابط استعادة.\nالحل: ألغِ وصوله وأنشئ حسابه من جديد بكلمة مرور جديدة');
+    return;
+  }
+  if (!confirm('إرسال رابط تغيير كلمة المرور إلى:\n'+m.email+' ؟')) return;
+  fbAuth.sendPasswordResetEmail(m.email)
+    .then(()=>alert('📬 أُرسل الرابط إلى '+m.email))
     .catch(e=>alert('فشل الإرسال: '+(e.message||'')));
 }
 
-function showCustomers() { renderCustomers(); document.getElementById('customers-modal').classList.add('open'); }
+function showCustomers() {
+  if (!canAccess('customers')) { permDenied('customers'); return; }
+  renderCustomers();
+  document.getElementById('customers-modal').classList.add('open');
+}
 function closeCustomers() { document.getElementById('customers-modal').classList.remove('open'); }
 
 // ─── نموذج العميل الكامل (إضافة وتعديل)
@@ -2629,6 +2816,7 @@ function savePayment() {
 
 // ═══════════════ BRANDING (logo & background images + sizes)
 function openBranding() {
+  if (!canAccess('settings')) { permDenied('settings'); return; }
   document.getElementById('branding-modal').classList.add('open');
   // restore sliders
   const lw = lsGet('logoWidth','120');
@@ -2702,7 +2890,7 @@ function applyBranding() {
 // ═══════════════ UTILS — English numerals everywhere
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function save(key) {
-  const map = {invoices,deletedInvoices,customers,products,payments};
+  const map = {invoices,deletedInvoices,customers,products,payments,branches};
   lsSet(key, JSON.stringify(map[key]));
 }
 function formatNum(n) { return (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2}); }
@@ -2742,6 +2930,57 @@ function applyCompanyInfo() {
   document.getElementById('p-co-name').textContent = settings.coName;
   document.getElementById('p-co-sub').textContent  = settings.coSub;
   document.getElementById('p-co-web').textContent  = settings.coWeb;
+}
+
+// ═══════════════ QR: للمنتجات وعلى الفاتورة
+function _loadQRLib() {
+  return window.QRCode ? Promise.resolve() : new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = 'qrcode.min.js'; // نسخة مدمجة مع الموقع — لا تعتمد على خدمات خارجية
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+let _qrProd = null;
+function showProductQR(id) {
+  const p = products.find(x=>x.id===id); if (!p) return;
+  _qrProd = p;
+  _loadQRLib().then(()=>{
+    const wrap = document.getElementById('qr-canvas-wrap');
+    wrap.innerHTML = '';
+    const cv = document.createElement('canvas');
+    wrap.appendChild(cv);
+    QRCode.toCanvas(cv, p.code, { width: 190, margin: 1 });
+    document.getElementById('qr-prod-name').textContent = p.name;
+    document.getElementById('qr-prod-code').textContent = p.code;
+    document.getElementById('qr-modal').classList.add('open');
+  }).catch(()=>alert('تعذر تحميل مولّد QR — تحقق من الإنترنت'));
+}
+function printProductQR() {
+  if (!_qrProd) return;
+  QRCode.toDataURL(_qrProd.code, { width: 300, margin: 1 }).then(url=>{
+    const w = window.open('', '_blank', 'width=400,height=480');
+    w.document.write(`<html dir="rtl"><head><title>ملصق</title></head>
+      <body style="text-align:center;font-family:Arial,sans-serif;margin:0;padding:14px">
+        <img src="${url}" style="width:48mm;height:48mm"><br>
+        <div style="font-weight:bold;font-size:13px">${_qrProd.name.replace(/</g,'&lt;')}</div>
+        <div style="font-size:12px;color:#444;direction:ltr">${_qrProd.code.replace(/</g,'&lt;')}</div>
+        <scr`+`ipt>onload=()=>{print();close();}</scr`+`ipt>
+      </body></html>`);
+    w.document.close();
+  });
+}
+function _setInvoiceQR(inv) {
+  const wrap = document.getElementById('p-qr-wrap');
+  wrap.style.display = 'none';
+  _loadQRLib().then(()=>{
+    const txt = [settings.coName, 'فاتورة رقم: '+inv.invNum, 'التاريخ: '+inv.date,
+                 'الإجمالي: '+inv.grand, 'الضريبة: '+(inv.tax||0)].join('\n');
+    return QRCode.toDataURL(txt, { width: 220, margin: 1 });
+  }).then(url=>{
+    document.getElementById('p-qr').src = url;
+    wrap.style.display = 'block';
+  }).catch(()=>{ wrap.style.display = 'none'; });
 }
 
 // ═══════════════ تصدير كل بيانات المنشأة لملف Excel (نسخة احتياطية)
