@@ -246,14 +246,15 @@ body.ltr .lang-btn{left:auto;right:18px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
-firebase.initializeApp({
+const FB_CONFIG = {
   apiKey: "AIzaSyCLSc1yXa5F5E89RzUJoOsj2eErjXsQjus",
   authDomain: "level7alaa.firebaseapp.com",
   projectId: "level7alaa",
   storageBucket: "level7alaa.firebasestorage.app",
   messagingSenderId: "924441815217",
   appId: "1:924441815217:web:f81b09e1cf0d0639fe9a90"
-});
+};
+firebase.initializeApp(FB_CONFIG);
 const fbAuth = firebase.auth();
 const fbDB   = firebase.firestore();
 </script>
@@ -433,6 +434,11 @@ const fbDB   = firebase.firestore();
 
         <h4 style="color:#2e7d32;margin:18px 0 12px">📦 تصدير البيانات</h4>
         <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="exportToExcel()">📊 تصدير كل البيانات إلى Excel (نسخة احتياطية)</button>
+
+        <div id="members-btn">
+          <h4 style="color:#2e7d32;margin:18px 0 12px">👤 مستخدمو المنشأة</h4>
+          <button class="btn btn-info" style="width:100%;margin-bottom:8px" onclick="showMembers()">👥 إدارة المستخدمين (الموظفين)</button>
+        </div>
 
         <div style="display:flex;gap:8px;margin-top:14px">
           <button class="btn btn-success" style="flex:1" onclick="saveSettings()" data-i18n="btnSaveSettings">✔ حفظ الإعدادات</button>
@@ -798,6 +804,38 @@ const fbDB   = firebase.firestore();
   </div>
 </div>
 
+<!-- ═══════════════ MODAL: MEMBERS (مستخدمو المنشأة) -->
+<div class="moverlay" id="members-modal">
+  <div class="mbox" style="max-width:640px">
+    <div class="mhdr"><h3>👥 مستخدمو المنشأة</h3><button class="mcls" onclick="closeModal('members-modal')">✕</button></div>
+    <div style="padding:13px;border-bottom:1px solid #eee">
+      <div style="font-size:.78rem;color:#777;margin-bottom:10px">أضف موظفيك ليدخلوا بحساباتهم الخاصة على بيانات منشأتك — لا يرون أي منشأة أخرى، ولا يمكنهم إدارة المستخدمين.</div>
+      <div style="display:grid;grid-template-columns:1fr 1.3fr 1fr auto;gap:8px;align-items:end">
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">اسم الموظف</label>
+          <input type="text" id="m-name" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">البريد الإلكتروني</label>
+          <input type="email" id="m-email" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit;direction:ltr"></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">كلمة المرور</label>
+          <input type="text" id="m-pass" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit;direction:ltr" placeholder="6+ أحرف"></div>
+        <button class="btn btn-success" onclick="addMember()" style="height:36px" id="m-add-btn">إضافة</button>
+      </div>
+      <div id="m-err" style="color:#c62828;font-size:.8rem;min-height:16px;margin-top:6px"></div>
+    </div>
+    <div class="mlist">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الاسم</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">البريد</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">أُضيف في</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">إجراءات</th>
+        </tr></thead>
+        <tbody id="members-tbody"></tbody>
+      </table>
+      <div id="members-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا يوجد مستخدمون بعد — املأ النموذج بالأعلى لإضافة أول موظف</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ SIDE PANEL: CUSTOMER (إضافة / تعديل كامل البيانات) -->
 <div class="side-panel" id="customer-panel">
   <div class="spb">
@@ -893,8 +931,9 @@ const fbDB   = firebase.firestore();
 <script>
 // ═══════════════ MULTI-TENANT ACCOUNTS (SaaS — Firebase Auth + Firestore)
 let accounts     = [];   // يُحمَّل من Firestore في لوحة الأدمن فقط
-let currentAccId = null; // = Firebase UID بعد الدخول
+let currentAccId = null; // = معرّف المنشأة (UID المالك) بعد الدخول
 let currentAccProfile = null;
+let currentMember = null; // بيانات الموظف إن كان الداخل مستخدماً تابعاً لمنشأة
 function lsKey(k)      { return 'acc_'+currentAccId+'_'+k; }
 function lsGet(k, def) { const v = localStorage.getItem(lsKey(k)); return v===null ? def : v; }
 function lsSet(k, v)   { localStorage.setItem(lsKey(k), v); scheduleCloudSave(); }
@@ -1110,12 +1149,17 @@ function login() {
     .then(email=>fbAuth.signInWithEmailAndPassword(email, pass))
     .then(cred=>{
       if (!cred.user.emailVerified) {
-        document.getElementById('verify-email-show').textContent = cred.user.email;
-        document.getElementById('demo-code-box').innerHTML =
-          '📬 حسابك غير مفعَّل — افتح رابط التفعيل المرسل لبريدك ثم اضغط الزر بالأسفل.';
-        err.textContent='';
-        showAuthTab('verify');
-        return;
+        // الموظفون التابعون لمنشأة لا يحتاجون تفعيل بريد — صاحب المنشأة أنشأ حسابهم بنفسه
+        return fbDB.collection('members').doc(cred.user.uid).get()
+          .then(s => s.exists, ()=>false)
+          .then(isMember => {
+            if (isMember) return _afterFirebaseLogin(cred.user);
+            document.getElementById('verify-email-show').textContent = cred.user.email;
+            document.getElementById('demo-code-box').innerHTML =
+              '📬 حسابك غير مفعَّل — افتح رابط التفعيل المرسل لبريدك ثم اضغط الزر بالأسفل.';
+            err.textContent='';
+            showAuthTab('verify');
+          });
       }
       return _afterFirebaseLogin(cred.user);
     })
@@ -1132,15 +1176,24 @@ function subscriptionBlockMsg(acc) {
 // بعد نجاح دخول Firebase: جلب الملف والاشتراك والبيانات السحابية ثم فتح النظام
 function _afterFirebaseLogin(user) {
   const err = document.getElementById('auth-err');
-  return cloudLoad(user.uid).then(profile=>{
-    if (!profile) { // حساب Auth بلا ملف (حالة نادرة) — أنشئ ملفاً افتراضياً
-      profile = { biz:user.email, user:user.email.split('@')[0], email:user.email,
-                  createdAt:new Date().toISOString(), subEnd:null, suspended:false };
-      fbDB.collection('accounts').doc(user.uid).set(profile, {merge:true});
+  // هل هذا الحساب موظف تابع لمنشأة؟ (جدول الربط members)
+  return fbDB.collection('members').doc(user.uid).get()
+    .then(s => s.exists ? s.data() : null)
+    .catch(()=>null)
+    .then(member => {
+      const tid = member ? member.tenantId : user.uid;
+      return cloudLoad(tid).then(profile => ({ profile, member, tid }));
+    })
+    .then(({ profile, member, tid }) => {
+    if (!profile) {
+      err.textContent = 'لا توجد منشأة مرتبطة بهذا الحساب — تواصل مع الإدارة';
+      fbAuth.signOut();
+      return;
     }
     const subMsg = subscriptionBlockMsg(profile);
     if (subMsg) { err.textContent = subMsg; fbAuth.signOut(); return; }
-    currentAccId = user.uid;
+    currentAccId = tid;
+    currentMember = member;
     currentAccProfile = profile;
     loadAccountData();
     if (!settings.coName || settings.coName===DEF_SETTINGS.coName) {
@@ -1148,7 +1201,10 @@ function _afterFirebaseLogin(user) {
       localStorage.setItem(lsKey('appSettings'), JSON.stringify(settings));
     }
     applyCompanyInfo();
-    document.getElementById('acc-name').textContent = '👤 '+profile.biz;
+    document.getElementById('acc-name').textContent = '👤 '+profile.biz + (member ? ' — '+member.name : '');
+    // إدارة مستخدمي المنشأة متاحة لصاحبها فقط
+    const mb = document.getElementById('members-btn');
+    if (mb) mb.style.display = member ? 'none' : 'block';
     // إشعار قرب انتهاء الاشتراك (آخر 7 أيام)
     const sn = document.getElementById('sub-notice');
     if (sn && profile.subEnd) {
@@ -1167,7 +1223,7 @@ function _afterFirebaseLogin(user) {
 function logout() {
   cloudSaveNow();
   fbAuth.signOut().finally(()=>{
-    currentAccId = null; currentAccProfile = null;
+    currentAccId = null; currentAccProfile = null; currentMember = null;
     showScreen('auth-screen');
   });
 }
@@ -2346,6 +2402,70 @@ function restoreInvoice(id) {
 function viewArchivedInvoice(id) { const inv=deletedInvoices.find(i=>i.id===id); if(inv) printInvoice(inv); }
 
 // ═══════════════ CUSTOMERS
+// ═══════════════ مستخدمو المنشأة (موظفون يدخلون بحساباتهم على بيانات منشأتهم فقط)
+function showMembers() {
+  if (currentMember) return; // إدارة المستخدمين لصاحب المنشأة فقط
+  renderMembers();
+  document.getElementById('members-modal').classList.add('open');
+}
+function renderMembers() {
+  fbDB.collection('members').where('tenantId','==',currentAccId).get().then(q=>{
+    const rows = q.docs.map(d=>({ id:d.id, ...d.data() }));
+    document.getElementById('members-empty').style.display = rows.length ? 'none' : 'block';
+    document.getElementById('members-tbody').innerHTML = rows.map(m=>`
+      <tr>
+        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${escHtml(m.name)}</td>
+        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;direction:ltr">${escHtml(m.email)}</td>
+        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${m.createdAt ? fmtDate(m.createdAt.split('T')[0]) : '-'}</td>
+        <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">
+          <button class="btn btn-warning btn-sm" onclick="resetMemberPass('${escHtml(m.email)}')">🔑 كلمة المرور</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteMember('${m.id}','${escHtml(m.name)}')">إلغاء الوصول</button>
+        </td>
+      </tr>`).join('');
+  }).catch(e=>{ document.getElementById('m-err').textContent = 'تعذر جلب المستخدمين: ' + (e.message||''); });
+}
+function addMember() {
+  const name  = document.getElementById('m-name').value.trim();
+  const email = document.getElementById('m-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('m-pass').value;
+  const errEl = document.getElementById('m-err');
+  if (!name || !email || !pass) { errEl.textContent = 'أكمل كل الحقول'; return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { errEl.textContent = 'صيغة البريد غير صحيحة'; return; }
+  if (pass.length < 6) { errEl.textContent = 'كلمة المرور 6 أحرف على الأقل'; return; }
+  errEl.textContent = '⏳ جارٍ إنشاء حساب الموظف...';
+  document.getElementById('m-add-btn').disabled = true;
+  // إنشاء حساب الموظف عبر تطبيق Firebase ثانوي حتى لا تنقطع جلسة المالك
+  const sec = firebase.apps.find(a=>a.name==='sec') || firebase.initializeApp(FB_CONFIG, 'sec');
+  sec.auth().createUserWithEmailAndPassword(email, pass)
+    .then(cred => {
+      const uid = cred.user.uid;
+      return sec.auth().signOut().then(()=>
+        fbDB.collection('members').doc(uid).set({
+          tenantId: currentAccId, name, email, createdAt: new Date().toISOString()
+        }));
+    })
+    .then(()=>{
+      errEl.textContent = '';
+      ['m-name','m-email','m-pass'].forEach(i=>document.getElementById(i).value='');
+      renderMembers();
+      alert('✔ أُنشئ حساب الموظف بنجاح\nأعطه البريد وكلمة المرور ليدخل من شاشة تسجيل الدخول العادية');
+    })
+    .catch(e=>{ errEl.textContent = _fbErrMsg(e); })
+    .finally(()=>{ document.getElementById('m-add-btn').disabled = false; });
+}
+function deleteMember(uid, name) {
+  if (!confirm('إلغاء وصول "'+name+'" للمنشأة؟ لن يستطيع الدخول بعدها')) return;
+  fbDB.collection('members').doc(uid).delete()
+    .then(renderMembers)
+    .catch(e=>{ document.getElementById('m-err').textContent = 'فشل: ' + (e.message||''); });
+}
+function resetMemberPass(email) {
+  if (!confirm('إرسال رابط تغيير كلمة المرور إلى:\n'+email+' ؟')) return;
+  fbAuth.sendPasswordResetEmail(email)
+    .then(()=>alert('📬 أُرسل الرابط إلى '+email))
+    .catch(e=>alert('فشل الإرسال: '+(e.message||'')));
+}
+
 function showCustomers() { renderCustomers(); document.getElementById('customers-modal').classList.add('open'); }
 function closeCustomers() { document.getElementById('customers-modal').classList.remove('open'); }
 
@@ -2712,6 +2832,9 @@ if (location.hash === '#admin') {
       const cu = fbAuth.currentUser;
       if (cu && cu.emailVerified)
         return cu.getIdToken(true).then(()=>_afterFirebaseLogin(cu));
+      // الموظفون التابعون لمنشأة يدخلون دون تفعيل بريد
+      if (cu) return fbDB.collection('members').doc(cu.uid).get()
+        .then(s => { if (s.exists) return _afterFirebaseLogin(cu); }, ()=>{});
     }).catch(()=>{});
   });
 }
