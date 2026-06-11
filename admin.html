@@ -101,7 +101,7 @@ const fbAuth = firebase.auth();
     <div class="data-table-wrap">
       <table>
         <thead><tr>
-          <th>المنشأة</th><th>المستخدم</th><th>الإيميل</th><th>🏬 فروع</th><th>👥 مستخدمون</th><th>📦 أصناف</th>
+          <th>المنشأة</th><th>المستخدم</th><th>الإيميل</th><th>🏬 فروع</th><th>👥 مستخدمون</th><th>📦 أصناف</th><th>💾 الحجم</th>
           <th>تاريخ التسجيل</th><th>نهاية الاشتراك</th><th>الحالة</th><th>إجراءات</th>
         </tr></thead>
         <tbody id="admin-tbody"></tbody>
@@ -184,12 +184,24 @@ function adminLoadAccounts(){
     renderAdminPanel();
   }).catch(e=>{
     document.getElementById('admin-tbody').innerHTML =
-      '<tr><td colspan="10" style="color:#c62828">تعذر جلب البيانات: '+escHtml(e.message||'')+'</td></tr>';
+      '<tr><td colspan="11" style="color:#c62828">تعذر جلب البيانات: '+escHtml(e.message||'')+'</td></tr>';
   });
 }
 // عدّ عناصر مخزنة كنص JSON داخل بيانات المنشأة (الفروع، الأصناف...)
 function _cntData(a, key){
   try { return (JSON.parse((a.data||{})[key]||'[]')).length; } catch(_) { return 0; }
+}
+// حجم بيانات المنشأة التقريبي ونسبته من حد المستند (1 ميجابايت)
+function _sizeBadge(a){
+  let bytes = 0;
+  const d = a.data||{};
+  Object.keys(d).forEach(k=>{ bytes += k.length + String(d[k]).length; });
+  const pct = Math.min(100, Math.round(bytes / 10485.76)); // % من 1MB
+  const kb = (bytes/1024).toFixed(0);
+  const color = pct >= 80 ? '#c62828' : pct >= 50 ? '#e65100' : '#2e7d32';
+  const bg    = pct >= 80 ? '#ffebee' : pct >= 50 ? '#fff3e0' : '#e8f5e9';
+  const warn  = pct >= 80 ? ' ⚠' : '';
+  return `<span class="pbadge" style="background:${bg};color:${color}" title="من أصل 1024 KB">${kb} KB (${pct}%)${warn}</span>`;
 }
 function renderAdminPanel(){
   const tb = document.getElementById('admin-tbody');
@@ -215,6 +227,7 @@ function renderAdminPanel(){
       <td>${_cntData(a,'branches')}</td>
       <td>${1 + (membersByTenant[a.id]||0)}</td>
       <td>${_cntData(a,'products')}</td>
+      <td>${_sizeBadge(a)}</td>
       <td>${created}</td>
       <td><input type="date" value="${a.subEnd||''}" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit"></td>
       <td>${st}</td>
