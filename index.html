@@ -387,6 +387,8 @@ const fbDB   = firebase.firestore();
     <div class="dash-card" onclick="newInvoice()" data-perm="invoices"><div class="icon">➕</div><h3 data-i18n="newInvoice">فاتورة جديدة</h3><p data-i18n="newInvoiceSub">إنشاء فاتورة</p></div>
     <div class="dash-card" onclick="showScreen('products-screen')" data-perm="products"><div class="icon">📦</div><h3 data-i18n="warehouse">المستودع</h3><p data-i18n="warehouseSub">الأصناف والمخزون</p></div>
     <div class="dash-card" onclick="showCustomers()" data-perm="customers"><div class="icon">👥</div><h3 data-i18n="customers">العملاء</h3><p data-i18n="customersSub">بيانات العملاء</p></div>
+    <div class="dash-card" id="card-members" onclick="showMembers()"><div class="icon">🧑‍💼</div><h3>المستخدمون</h3><p>الموظفون وصلاحياتهم</p></div>
+    <div class="dash-card" id="card-branches" onclick="showBranches()"><div class="icon">🏬</div><h3>الفروع</h3><p>فروع المنشأة وبياناتها</p></div>
     <div class="dash-card" onclick="showScreen('analytics-screen')" data-perm="analytics"><div class="icon">📊</div><h3 data-i18n="analytics">التحليلات</h3><p data-i18n="analyticsSub">إحصائيات وتقارير</p></div>
     <div class="dash-card" onclick="showScreen('archive-screen')" data-perm="archive"><div class="icon">🗂️</div><h3 data-i18n="archive">الأرشيف</h3><p data-i18n="archiveSub">الفواتير المحذوفة</p></div>
     <div class="dash-card" onclick="openBranding()" data-perm="settings"><div class="icon">🎨</div><h3 data-i18n="branding">الشعار والخلفية</h3><p data-i18n="brandingSub">صور وقياسات</p></div>
@@ -1280,9 +1282,11 @@ function _afterFirebaseLogin(user) {
     applyCompanyInfo();
     document.getElementById('acc-name').textContent = '👤 '+profile.biz
       + (member ? ' — '+member.name + (member.branchName ? ' (🏬 '+member.branchName+')' : '') : '');
-    // إدارة مستخدمي المنشأة متاحة لصاحبها فقط
-    const mb = document.getElementById('members-btn');
-    if (mb) mb.style.display = member ? 'none' : 'block';
+    // إدارة المستخدمين والفروع متاحة لصاحب المنشأة فقط
+    ['members-btn','card-members','card-branches'].forEach(i=>{
+      const el = document.getElementById(i);
+      if (el) el.style.display = member ? 'none' : '';
+    });
     // تطبيق صلاحيات الموظف على بطاقات وأزرار الواجهة
     applyMemberPerms();
     // إشعار قرب انتهاء الاشتراك (آخر 7 أيام)
@@ -2525,7 +2529,17 @@ function showMembers() {
   document.getElementById('members-modal').classList.add('open');
 }
 // ─── الفروع
-function showBranches() { renderBranches(); document.getElementById('branches-modal').classList.add('open'); }
+function showBranches() {
+  if (currentMember) return; // لصاحب المنشأة فقط
+  // تحديث قائمة الموظفين أولاً لعرض عدد موظفي كل فرع بدقة
+  fbDB.collection('members').where('tenantId','==',currentAccId).get()
+    .then(q=>{ _membersCache = q.docs.map(d=>({ id:d.id, ...d.data() })); })
+    .catch(()=>{})
+    .then(()=>{
+      renderBranches();
+      document.getElementById('branches-modal').classList.add('open');
+    });
+}
 function fillBranchSelect() {
   const sel = document.getElementById('m-branch');
   sel.innerHTML = '<option value="">المركز الرئيسي</option>' +
