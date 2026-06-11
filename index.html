@@ -989,8 +989,8 @@ let currentAccProfile = null;
 let currentMember = null; // بيانات الموظف إن كان الداخل مستخدماً تابعاً لمنشأة
 function lsKey(k)      { return 'acc_'+currentAccId+'_'+k; }
 function lsGet(k, def) { const v = localStorage.getItem(lsKey(k)); return v===null ? def : v; }
-function lsSet(k, v)   { localStorage.setItem(lsKey(k), v); scheduleCloudSave(); }
-function lsDel(k)      { localStorage.removeItem(lsKey(k)); scheduleCloudSave(); }
+function lsSet(k, v)   { localStorage.setItem(lsKey(k), v); _dirtyKeys.add(k); scheduleCloudSave(); }
+function lsDel(k)      { localStorage.removeItem(lsKey(k)); _dirtyKeys.add(k); scheduleCloudSave(); }
 
 // ── مزامنة سحابية: كل بيانات المنشأة تُحفظ في Firestore وتُستعاد من أي جهاز
 const CLOUD_KEYS = ['invoices','deletedInvoices','customers','products','payments',
@@ -1002,17 +1002,21 @@ function scheduleCloudSave() {
   clearTimeout(_cloudTimer);
   _cloudTimer = setTimeout(cloudSaveNow, 1200);
 }
+// يُحفظ المتغير فقط (وليس كل البيانات) حتى لا يمحو حفظُ موظفٍ تغييراتِ موظفٍ آخر يعمل معه
+const _dirtyKeys = new Set();
 function cloudSaveNow() {
-  if (!currentAccId) return;
-  const data = {};
-  CLOUD_KEYS.forEach(k=>{
+  if (!currentAccId || !_dirtyKeys.size) return;
+  const upd = { updatedAt: new Date().toISOString() };
+  _dirtyKeys.forEach(k=>{
     const v = localStorage.getItem(lsKey(k));
     // حد مستند Firestore هو 1MB — تُتخطى الصور الضخمة جداً
-    if (v!==null && v.length < 600000) data[k] = v;
+    if (v !== null && v.length < 600000) upd['data.'+k] = v;
+    else if (v === null) upd['data.'+k] = firebase.firestore.FieldValue.delete();
   });
-  fbDB.collection('accounts').doc(currentAccId)
-     .set({ data, updatedAt: new Date().toISOString() }, { merge:true })
-     .catch(e=>console.warn('cloud save failed', e));
+  const pending = [..._dirtyKeys];
+  _dirtyKeys.clear();
+  fbDB.collection('accounts').doc(currentAccId).update(upd)
+     .catch(e=>{ pending.forEach(k=>_dirtyKeys.add(k)); console.warn('cloud save failed', e); });
 }
 function cloudLoad(uid) {
   return fbDB.collection('accounts').doc(uid).get().then(snap=>{
@@ -1020,8 +1024,27 @@ function cloudLoad(uid) {
     CLOUD_KEYS.forEach(k=>{
       if (d[k]!==undefined) localStorage.setItem('acc_'+uid+'_'+k, d[k]);
     });
+    if (snap.exists) _dailyBackup(uid, d); // نسخة احتياطية يومية تلقائية
     return snap.exists ? snap.data() : null;
   });
+}
+// ── نسخة احتياطية يومية: أول دخول كل يوم يحفظ لقطة كاملة في accounts/{uid}/backups/{اليوم}
+// تُحفظ آخر 14 نسخة — أي كارثة (حذف خاطئ، خلل) يمكن الرجوع منها
+function _dailyBackup(uid, data) {
+  try {
+    const day = new Date().toISOString().split('T')[0];
+    const ref = fbDB.collection('accounts').doc(uid).collection('backups').doc(day);
+    ref.get().then(s=>{
+      if (s.exists) return;
+      ref.set({ data, at: new Date().toISOString() }).then(()=>{
+        // إبقاء آخر 14 نسخة فقط
+        fbDB.collection('accounts').doc(uid).collection('backups').get().then(q=>{
+          const docs = q.docs.sort((a,b)=>a.id<b.id?-1:1);
+          for (let i=0; i<docs.length-14; i++) docs[i].ref.delete().catch(()=>{});
+        }).catch(()=>{});
+      }).catch(()=>{});
+    }).catch(()=>{});
+  } catch(_) {}
 }
 
 // ═══════════════ STATE (loaded per account)
@@ -3020,10 +3043,15 @@ function exportToExcel() {
 }
 function resetAllData() {
   const ar = lang==='ar';
+  if (currentMember) { alert(ar?'هذه العملية لصاحب المنشأة حصراً':'Owner only'); return; }
   if (!confirm(ar?'⚠️ سيتم حذف جميع الفواتير والعملاء والأصناف والدفعات نهائياً. هل أنت متأكد؟':'⚠️ All invoices, customers, products and payments will be permanently deleted. Are you sure?')) return;
   if (!confirm(ar?'تأكيد أخير: لا يمكن التراجع عن هذه العملية!':'Final confirmation: this cannot be undone!')) return;
-  ['invoices','deletedInvoices','customers','products','payments','nextInvNum','nextProdSeq','appSettings','logoImg','bgImg','logoWidth','bgWidth','bgOpacity'].forEach(k=>lsDel(k));
-  location.reload();
+  // حماية إضافية: كتابة عبارة التأكيد يدوياً (توجد نسخة احتياطية يومية قابلة للاسترجاع)
+  const word = prompt(ar?'للإتمام اكتب حرفياً: حذف نهائي':'Type exactly: DELETE ALL');
+  if (word !== (ar?'حذف نهائي':'DELETE ALL')) { alert(ar?'لم يتم الحذف':'Cancelled'); return; }
+  CLOUD_KEYS.forEach(k=>lsDel(k));
+  cloudSaveNow();
+  setTimeout(()=>location.reload(), 1500);
 }
 
 // next sequential customer number (auto-assigned for new clients)

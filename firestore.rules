@@ -18,6 +18,12 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid;
       allow update: if request.auth != null && (request.auth.uid == uid || isMemberOf(uid))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['data', 'updatedAt']);
+      // النسخ الاحتياطية اليومية: تُنشأ ولا تُعدّل — وحذف القديم منها للمالك فقط
+      match /backups/{day} {
+        allow read, write: if isAdmin();
+        allow read, create, delete: if request.auth != null
+          && (request.auth.uid == uid || isMemberOf(uid));
+      }
     }
     // موظفو المنشآت: المالك يدير موظفيه — والموظف يقرأ سجله فقط
     match /members/{empUid} {
