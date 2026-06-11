@@ -115,6 +115,8 @@ body.ltr .lang-btn{left:auto;right:18px}
 .an-stat.p{border-top-color:#6a1b9a}.an-stat.p .v{color:#6a1b9a}
 /* SIDE PANEL */
 .side-panel{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-start;justify-content:flex-end}
+/* نموذج العميل يُفتح فوق نافذة قائمة العملاء (z-index أعلى من .moverlay) */
+#customer-panel{z-index:350}
 .side-panel.open{display:flex}
 .spb{background:white;width:100%;max-width:420px;height:100%;overflow-y:auto;box-shadow:-4px 0 22px rgba(0,0,0,.2);animation:slideIn .25s ease}
 @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
@@ -774,18 +776,12 @@ const fbDB   = firebase.firestore();
 
 <!-- ═══════════════ MODAL: CUSTOMERS -->
 <div class="moverlay" id="customers-modal">
-  <div class="mbox" style="max-width:620px">
+  <div class="mbox" style="max-width:680px">
     <div class="mhdr"><h3 data-i18n="customersTitle">👥 إدارة العملاء</h3><button class="mcls" onclick="closeCustomers()">✕</button></div>
-    <div style="padding:13px;border-bottom:1px solid #eee">
-      <div style="display:grid;grid-template-columns:80px 1fr 1fr auto;gap:8px;align-items:end">
-        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px" data-i18n="lblNum">الرقم</label>
-          <input type="number" id="c-num" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
-        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px" data-i18n="lblName">الاسم <span class="req">*</span></label>
-          <input type="text" id="c-name" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
-        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px" data-i18n="lblPhone2">التواصل</label>
-          <input type="text" id="c-phone" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
-        <button class="btn btn-success" onclick="addCustomer()" style="height:36px" data-i18n="btnAdd">إضافة</button>
-      </div>
+    <div style="padding:11px 13px;border-bottom:1px solid #eee;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-success" onclick="openCustomerPanel()">＋ إضافة عميل جديد</button>
+      <input type="text" id="cust-search" placeholder="🔍 بحث بالاسم أو الرقم أو الهاتف..." oninput="renderCustomers()"
+        style="flex:1;padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
     </div>
     <div class="mlist">
       <table style="width:100%;border-collapse:collapse">
@@ -797,6 +793,30 @@ const fbDB   = firebase.firestore();
         </tr></thead>
         <tbody id="customers-tbody"></tbody>
       </table>
+      <div id="cust-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا يوجد عملاء بعد — اضغط "إضافة عميل جديد"</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SIDE PANEL: CUSTOMER (إضافة / تعديل كامل البيانات) -->
+<div class="side-panel" id="customer-panel">
+  <div class="spb">
+    <div class="sph"><h3 id="cust-panel-title">إضافة عميل جديد</h3><button class="spc" onclick="closeCustomerPanel()">✕</button></div>
+    <div class="spbody">
+      <input type="hidden" id="c2-edit-id">
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:10px">
+        <div class="fg"><label>رقم العميل</label><input type="number" id="c2-num" placeholder="تلقائي"></div>
+        <div class="fg"><label>اسم العميل <span class="req">*</span></label><input type="text" id="c2-name"></div>
+      </div>
+      <div class="fg"><label>رقم الهاتف / الجوال</label><input type="text" id="c2-phone" style="direction:ltr" placeholder="05xxxxxxxx"></div>
+      <div class="fg"><label>البريد الإلكتروني</label><input type="email" id="c2-email" style="direction:ltr" placeholder="name@example.com"></div>
+      <div class="fg"><label>العنوان</label><input type="text" id="c2-address" placeholder="المدينة - الحي - الشارع"></div>
+      <div class="fg"><label>الرقم الضريبي (إن وجد)</label><input type="text" id="c2-tax" style="direction:ltr"></div>
+      <div class="fg"><label>ملاحظات</label><textarea id="c2-notes" rows="2"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-success" style="flex:1" onclick="saveCustomerFull()">✔ حفظ العميل</button>
+        <button class="btn" style="background:#9e9e9e;color:white" onclick="closeCustomerPanel()">إلغاء</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2329,35 +2349,88 @@ function viewArchivedInvoice(id) { const inv=deletedInvoices.find(i=>i.id===id);
 function showCustomers() { renderCustomers(); document.getElementById('customers-modal').classList.add('open'); }
 function closeCustomers() { document.getElementById('customers-modal').classList.remove('open'); }
 
-function addCustomer() {
+// ─── نموذج العميل الكامل (إضافة وتعديل)
+function openCustomerPanel(id) {
+  const c = id ? customers.find(x=>x.id===id) : null;
+  document.getElementById('cust-panel-title').textContent = c ? 'تعديل بيانات العميل' : 'إضافة عميل جديد';
+  document.getElementById('c2-edit-id').value = c ? c.id : '';
+  document.getElementById('c2-num').value     = c ? (c.num||'') : '';
+  document.getElementById('c2-name').value    = c ? c.name : '';
+  document.getElementById('c2-phone').value   = c ? (c.phone||'') : '';
+  document.getElementById('c2-email').value   = c ? (c.email||'') : '';
+  document.getElementById('c2-address').value = c ? (c.address||'') : '';
+  document.getElementById('c2-tax').value     = c ? (c.taxNo||'') : '';
+  document.getElementById('c2-notes').value   = c ? (c.notes||'') : '';
+  document.getElementById('customer-panel').classList.add('open');
+}
+function closeCustomerPanel() { document.getElementById('customer-panel').classList.remove('open'); }
+function saveCustomerFull() {
   const ar = lang==='ar';
-  const name = document.getElementById('c-name').value.trim();
+  const editId = document.getElementById('c2-edit-id').value;
+  const name = document.getElementById('c2-name').value.trim();
   if (!name) { alert(ar?'الرجاء إدخال اسم العميل':'Enter customer name'); return; }
-  let num = document.getElementById('c-num').value.trim();
-  if (num && customers.find(c=>String(c.num)===String(num))) { alert(ar?'رقم العميل موجود':'Customer number exists'); return; }
-  if (!num) num = getNextCustomerNum(); // رقم تلقائي إذا تُرك فارغاً
-  customers.push({num,name,phone:document.getElementById('c-phone').value.trim(),id:Date.now()});
+  let num = document.getElementById('c2-num').value.trim();
+  if (num && customers.find(c=>String(c.num)===String(num) && String(c.id)!==editId)) {
+    alert(ar?'رقم العميل مستخدم لعميل آخر':'Customer number already used'); return;
+  }
+  if (!num) num = getNextCustomerNum();
+  const data = {
+    num, name,
+    phone:   document.getElementById('c2-phone').value.trim(),
+    email:   document.getElementById('c2-email').value.trim(),
+    address: document.getElementById('c2-address').value.trim(),
+    taxNo:   document.getElementById('c2-tax').value.trim(),
+    notes:   document.getElementById('c2-notes').value.trim(),
+  };
+  if (editId) {
+    const c = customers.find(x=>String(x.id)===editId);
+    if (c) {
+      Object.assign(c, data);
+      // تحديث اسم وهاتف العميل في فواتيره حتى تبقى الكشوف متسقة
+      invoices.forEach(inv=>{ if (String(inv.clientId)===editId) { inv.clientName=c.name; inv.clientPhone=c.phone; inv.clientNum=c.num; } });
+      save('invoices');
+    }
+  } else {
+    customers.push({ id: Date.now(), ...data });
+  }
   save('customers');
-  ['c-num','c-name','c-phone'].forEach(i=>document.getElementById(i).value='');
+  closeCustomerPanel();
   renderCustomers();
 }
 function deleteCustomer(id) {
-  if (!confirm(lang==='ar'?'حذف العميل؟':'Delete customer?')) return;
+  const ar = lang==='ar';
+  const hasInv = invoices.some(i=>String(i.clientId)===String(id));
+  const hasPay = payments.some(p=>String(p.clientId)===String(id));
+  if (hasInv || hasPay) { alert(ar?'لا يمكن حذف عميل له فواتير أو دفعات — يمكنك تعديل بياناته فقط':'Cannot delete a customer with invoices or payments'); return; }
+  if (!confirm(ar?'حذف العميل؟':'Delete customer?')) return;
   customers = customers.filter(c=>c.id!==id); save('customers'); renderCustomers();
 }
 function renderCustomers() {
   const ar = lang==='ar';
-  document.getElementById('customers-tbody').innerHTML = customers.map(c=>`
+  const q = (document.getElementById('cust-search')?.value||'').trim().toLowerCase();
+  const list = customers.filter(c=> !q
+    || String(c.num||'').includes(q)
+    || (c.name||'').toLowerCase().includes(q)
+    || (c.phone||'').includes(q));
+  document.getElementById('cust-empty').style.display = list.length ? 'none' : 'block';
+  document.getElementById('customers-tbody').innerHTML = list.map(c=>{
+    const extra = [c.email, c.address, c.taxNo ? (ar?'ضريبي: ':'Tax: ')+c.taxNo : '']
+      .filter(Boolean).map(escHtml).join(' • ');
+    return `
     <tr>
       <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${c.num||'-'}</td>
-      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${escHtml(c.name)}</td>
-      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${escHtml(c.phone||'-')}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">
+        <div style="font-weight:600">${escHtml(c.name)}</div>
+        ${extra?`<div style="font-size:.72rem;color:#888;margin-top:2px">${extra}</div>`:''}
+      </td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;direction:ltr">${escHtml(c.phone||'-')}</td>
       <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">
+        <button class="btn btn-primary btn-sm" onclick="openCustomerPanel(${c.id})">${ar?'✏️ تعديل':'✏️ Edit'}</button>
         <button class="btn btn-info btn-sm" onclick="showStatement(${c.id},'${escHtml(c.name)}')">${ar?'كشف':'Statement'}</button>
         <button class="btn btn-warning btn-sm" onclick="openAddPaymentForClient(${c.id},'${escHtml(c.name)}')">${ar?'دفعة':'Payment'}</button>
         <button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id})">${ar?'حذف':'Delete'}</button>
       </td>
-    </tr>`).join('');
+    </tr>`;}).join('');
 }
 
 // ═══════════════ STATEMENT
@@ -2567,7 +2640,8 @@ function exportToExcel() {
     const itemRows = [];
     invoices.forEach(i=>i.items.forEach(it=>itemRows.push({ 'رقم الفاتورة':i.invNum, 'التاريخ':i.date,
       'الصنف':it.desc, 'الكمية':it.qty, 'السعر':it.price, 'الخصم':it.disc||0, 'الإجمالي':it.total })));
-    const custRows = customers.map(c=>({ 'رقم العميل':c.num, 'الاسم':c.name, 'الهاتف':c.phone||'' }));
+    const custRows = customers.map(c=>({ 'رقم العميل':c.num, 'الاسم':c.name, 'الهاتف':c.phone||'',
+      'البريد':c.email||'', 'العنوان':c.address||'', 'الرقم الضريبي':c.taxNo||'', 'ملاحظات':c.notes||'' }));
     const prodRows = products.map(p=>({ 'الكود':p.code, 'الاسم':p.name, 'الفئة':p.category||'',
       'الوحدة':p.unit||'', 'سعر البيع':p.sellPrice, 'سعر الشراء':p.isService?'':(p.buyPrice||0),
       'الكمية':p.isService?'خدمة':(p.qty||0) }));
