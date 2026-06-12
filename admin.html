@@ -121,6 +121,21 @@ function togglePwd(btn) {
   btn.textContent = show ? '🙈' : '👁️';
 }
 function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function dmyToISO(v) {
+  v = String(v||'').trim();
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const m = v.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (!m) return null;
+  const d = +m[1], mo = +m[2], y = +m[3];
+  if (d<1||d>31||mo<1||mo>12) return null;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function isoToDMY(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (+m[3])+'/'+(+m[2])+'/'+m[1] : iso;
+}
 function fmtDate(dateStr){
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){ const d=new Date(dateStr); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
   return dateStr;
@@ -229,7 +244,7 @@ function renderAdminPanel(){
       <td>${_cntData(a,'products')}</td>
       <td>${_sizeBadge(a)}</td>
       <td>${created}</td>
-      <td><input type="date" value="${a.subEnd||''}" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit"></td>
+      <td><input type="text" value="${isoToDMY(a.subEnd)||''}" placeholder="يوم/شهر/سنة" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit;direction:ltr;text-align:center;width:108px"></td>
       <td>${st}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-success btn-sm" onclick="adminExtend('${a.id}',30)">+30ي</button>
@@ -247,7 +262,11 @@ function _adminUpdate(id, fields){
     .then(()=>{ const a=accounts.find(x=>x.id===id); if(a) Object.assign(a, fields); renderAdminPanel(); })
     .catch(e=>alert('فشل الحفظ: '+(e.message||'')));
 }
-function adminSetSubEnd(id, val){ _adminUpdate(id, { subEnd: val||null }); }
+function adminSetSubEnd(id, val){
+  const iso = dmyToISO(val);
+  if (iso === null) { alert('صيغة التاريخ: يوم/شهر/سنة مثل 31/12/2026'); renderAdminPanel(); return; }
+  _adminUpdate(id, { subEnd: iso||null });
+}
 // حدود المنشأة: عدد الفروع / المستخدمين المسموح (فارغ = بلا حد)
 function adminSetLimit(id, key, val){
   const n = val === '' ? null : Math.max(0, parseInt(val)||0);

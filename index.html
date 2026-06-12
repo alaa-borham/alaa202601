@@ -235,6 +235,11 @@ body.ltr .lang-btn{left:auto;right:18px}
 .stmt-row .dr{color:#c62828;font-weight:600}.stmt-row .cr{color:#2e7d32;font-weight:600}
 .balance-positive{color:#2e7d32;font-weight:bold}.balance-negative{color:#c62828;font-weight:bold}
 #print-datetime{text-align:center;font-size:.72rem;color:#999;margin-top:16px}
+/* مكوّن التاريخ يوم/شهر/سنة */
+.dmy{display:flex;gap:5px;align-items:center;position:relative}
+.dmy input[type=text]{flex:1;direction:ltr;text-align:center}
+.dmy-btn{border:1.5px solid #ddd;background:#f5f5f5;border-radius:7px;padding:6px 9px;cursor:pointer;font-size:.95rem}
+.dmy-hidden{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;right:0;border:0;padding:0}
 /* RECEIPT — سند قبض رسمي (مطابق للنموذج المعتمد) */
 .rcpt-print{background:white;width:210mm;margin:0 auto;padding:8mm 10mm;box-shadow:0 4px 24px rgba(0,0,0,.25);direction:rtl;font-family:'Segoe UI',Tahoma,Arial,sans-serif;border:1.5px dashed #9e9e9e;position:relative;overflow:hidden}
 .rcpt-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:20px}
@@ -603,7 +608,7 @@ const fbDB   = firebase.firestore();
           <input type="hidden" id="f-inv-num">
           <div class="fg">
             <label data-i18n="lblDate">التاريخ</label>
-            <input type="date" id="f-date">
+            <span class="dmy"><input type="text" id="f-date" placeholder="يوم/شهر/سنة" inputmode="numeric"><button type="button" class="dmy-btn" onclick="dmyPick(this)" tabindex="-1">📅</button><input type="date" class="dmy-hidden" tabindex="-1"></span>
             <label style="display:flex;align-items:center;gap:5px;font-size:.75rem;color:#777;margin-top:4px;font-weight:normal;cursor:pointer">
               <input type="checkbox" id="manual-date-cb" style="width:auto" onchange="toggleManualDate()"> <span data-i18n="manualDate">إدخال التاريخ يدوياً</span>
             </label>
@@ -958,7 +963,7 @@ const fbDB   = firebase.firestore();
     <div style="padding:13px;border-bottom:1px solid #eee">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:end">
         <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">التاريخ</label>
-          <input type="date" id="ex-date" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
+          <span class="dmy"><input type="text" id="ex-date" placeholder="يوم/شهر/سنة" inputmode="numeric" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"><button type="button" class="dmy-btn" onclick="dmyPick(this)" tabindex="-1">📅</button><input type="date" class="dmy-hidden" tabindex="-1"></span></div>
         <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">الفئة</label>
           <select id="ex-cat" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
             <option>إيجار</option><option>رواتب</option><option>كهرباء وماء</option>
@@ -1088,7 +1093,7 @@ const fbDB   = firebase.firestore();
     <div class="mhdr"><h3 id="sup-pay-title">دفعة للمورد</h3><button class="mcls" onclick="closeModal('sup-pay-modal')">✕</button></div>
     <div style="padding:18px">
       <input type="hidden" id="sup-pay-id">
-      <div class="fg"><label>التاريخ</label><input type="date" id="sup-pay-date"></div>
+      <div class="fg"><label>التاريخ</label><span class="dmy"><input type="text" id="sup-pay-date" placeholder="يوم/شهر/سنة" inputmode="numeric"><button type="button" class="dmy-btn" onclick="dmyPick(this)" tabindex="-1">📅</button><input type="date" class="dmy-hidden" tabindex="-1"></span></div>
       <div class="fg"><label>المبلغ <span class="req">*</span></label><input type="number" id="sup-pay-amount" min="0" step="0.01" placeholder="0.00"></div>
       <div class="fg"><label>طريقة الدفع</label>
         <select id="sup-pay-method">
@@ -1273,7 +1278,7 @@ const fbDB   = firebase.firestore();
     <div class="mhdr"><h3 id="pay-modal-title">إضافة دفعة</h3><button class="mcls" onclick="closeModal('payment-modal')">✕</button></div>
     <div style="padding:18px">
       <input type="hidden" id="pay-client-id">
-      <div class="fg"><label data-i18n="lblDate">التاريخ</label><input type="date" id="pay-date"></div>
+      <div class="fg"><label data-i18n="lblDate">التاريخ</label><span class="dmy"><input type="text" id="pay-date" placeholder="يوم/شهر/سنة" inputmode="numeric"><button type="button" class="dmy-btn" onclick="dmyPick(this)" tabindex="-1">📅</button><input type="date" class="dmy-hidden" tabindex="-1"></span></div>
       <div class="fg"><label data-i18n="lblMoveType">نوع الحركة</label>
         <select id="pay-type">
           <option value="دفعة">دفعة من العميل</option>
@@ -1396,6 +1401,40 @@ function loadAccountData() {
   nextDsbNum      = parseInt(lsGet('nextDsbNum','1'));
   nextProdSeq     = parseInt(lsGet('nextProdSeq','1'));
   settings        = {...DEF_SETTINGS, ...JSON.parse(lsGet('appSettings','{}'))};
+}
+
+// ═══════════════ التاريخ بصيغة يوم/شهر/سنة دائماً (مستقل عن لغة المتصفح)
+function dmyToISO(v) {
+  v = String(v||'').trim();
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v; // ISO جاهز
+  const m = v.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (!m) return null;
+  const d = +m[1], mo = +m[2], y = +m[3];
+  if (d<1||d>31||mo<1||mo>12) return null;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function isoToDMY(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (+m[3])+'/'+(+m[2])+'/'+m[1] : iso;
+}
+function todayDMY(){ return isoToDMY(new Date().toISOString().split('T')[0]); }
+// قراءة حقل تاريخ نصي: تُرجع ISO أو اليوم إن فرغ — وتنبه إن كانت الصيغة خاطئة
+function readDMY(id) {
+  const el = document.getElementById(id);
+  const iso = dmyToISO(el.value);
+  if (iso === null) { alert('صيغة التاريخ غير صحيحة — اكتبها: يوم/شهر/سنة مثل '+todayDMY()); el.focus(); throw '_baddate'; }
+  return iso || new Date().toISOString().split('T')[0];
+}
+// زر 📅: يفتح تقويم المتصفح ويكتب الناتج بصيغة يوم/شهر/سنة
+function dmyPick(btn) {
+  const wrap = btn.parentElement;
+  const txt = wrap.querySelector('input[type=text]');
+  const hid = wrap.querySelector('.dmy-hidden');
+  hid.value = dmyToISO(txt.value) || new Date().toISOString().split('T')[0];
+  hid.onchange = ()=>{ txt.value = isoToDMY(hid.value); };
+  if (hid.showPicker) { try { hid.showPicker(); } catch(_) { hid.click(); } } else hid.click();
 }
 
 // ═══════════════ AUTH
@@ -1694,7 +1733,7 @@ function renderAdminPanel() {
       <td style="direction:ltr">${escHtml(a.email||'-')}</td>
       <td>${a.verified!==false?'✅':'❌'}</td>
       <td>${created}</td>
-      <td><input type="date" value="${a.subEnd||''}" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit"></td>
+      <td><input type="text" value="${isoToDMY(a.subEnd)||''}" placeholder="يوم/شهر/سنة" onchange="adminSetSubEnd('${a.id}',this.value)" style="padding:4px;border:1px solid #ddd;border-radius:5px;font-family:inherit;direction:ltr;text-align:center;width:110px"></td>
       <td>${st}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-success btn-sm" onclick="adminExtend('${a.id}',30)">+30ي</button>
@@ -1713,7 +1752,11 @@ function _adminUpdate(id, fields) {
     .then(()=>{ const a=accounts.find(x=>x.id===id); if(a) Object.assign(a, fields); renderAdminPanel(); })
     .catch(e=>alert('فشل الحفظ: '+(e.message||'')));
 }
-function adminSetSubEnd(id, val) { _adminUpdate(id, { subEnd: val||null }); }
+function adminSetSubEnd(id, val) {
+  const iso = dmyToISO(val);
+  if (iso === null) { alert('صيغة التاريخ: يوم/شهر/سنة مثل 31/12/2026'); renderAdminPanel(); return; }
+  _adminUpdate(id, { subEnd: iso||null });
+}
 function adminExtend(id, days) {
   const a=accounts.find(x=>x.id===id); if(!a) return;
   const base = (a.subEnd && new Date(a.subEnd) > new Date()) ? new Date(a.subEnd) : new Date();
@@ -2176,7 +2219,7 @@ function getFormDate() {
   if (document.getElementById('manual-date-cb').checked) {
     return document.getElementById('f-date-manual').value.trim() || new Date().toISOString().split('T')[0];
   }
-  return document.getElementById('f-date').value;
+  return readDMY('f-date');
 }
 
 // ═══════════════ PRODUCTS
@@ -2455,7 +2498,7 @@ function newInvoice(returnFor) {
   document.getElementById('form-title').textContent = returnFor?(ar?'فاتورة مرتجع':'Return Invoice'):(ar?'فاتورة جديدة':'New Invoice');
   document.getElementById('f-inv-num').value = nextInvNum;
   document.getElementById('inv-num-display').textContent = (ar?'الفاتورة العامة رقم: ':'Global invoice no.: ')+nextInvNum;
-  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value = todayDMY();
   document.getElementById('manual-date-cb').checked=false; toggleManualDate();
   document.getElementById('f-date-manual').value='';
   document.getElementById('f-type').value = returnFor?'فاتورة مرتجع':'فاتورة مبيعات';
@@ -3327,7 +3370,7 @@ function doTransfer(){
 // ═══════════════ المصروفات
 function showExpenses(){
   if (!canAccess('expenses')) { permDenied('expenses'); return; }
-  document.getElementById('ex-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ex-date').value = todayDMY();
   const bsel = document.getElementById('ex-branch');
   bsel.innerHTML = '<option value="">المركز الرئيسي</option>' + branches.map(b=>`<option value="${b.id}">${escHtml(b.name)}</option>`).join('');
   if (currentMember && currentMember.branchId) { bsel.value = String(currentMember.branchId); bsel.disabled = true; }
@@ -3342,7 +3385,7 @@ function addExpense(){
   const bid = document.getElementById('ex-branch').value;
   const b = branches.find(x=>String(x.id)===bid);
   expenses.push({ id: Date.now(),
-    date: document.getElementById('ex-date').value,
+    date: readDMY('ex-date'),
     category: document.getElementById('ex-cat').value,
     desc: document.getElementById('ex-desc').value.trim(),
     amount,
@@ -3553,7 +3596,7 @@ function renderSupStatement(sid){
 }
 // دفعة للمورد + سند صرف
 function openSupPayment(){
-  document.getElementById('sup-pay-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sup-pay-date').value = todayDMY();
   document.getElementById('sup-pay-amount').value='';
   document.getElementById('sup-pay-notes').value='';
   document.getElementById('sup-pay-modal').classList.add('open');
@@ -3563,7 +3606,7 @@ function saveSupPayment(){
   if (!amount) { alert('الرجاء إدخال المبلغ'); return; }
   const sid = parseInt(document.getElementById('sup-pay-id').value);
   const pay = { id: Date.now(), supplierId: sid,
-    date: document.getElementById('sup-pay-date').value,
+    date: readDMY('sup-pay-date'),
     amount, method: document.getElementById('sup-pay-method').value,
     notes: document.getElementById('sup-pay-notes').value.trim(),
     dsbNum: nextDsbNum++ };
@@ -3649,14 +3692,14 @@ function renderStatement(clientId) {
 // ═══════════════ PAYMENTS
 function openAddPayment() {
   document.getElementById('payment-modal').classList.add('open');
-  document.getElementById('pay-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('pay-date').value = todayDMY();
   document.getElementById('pay-amount').value='';
   document.getElementById('pay-notes').value='';
 }
 function openAddPaymentForClient(clientId, clientName) {
   document.getElementById('pay-client-id').value = clientId;
   document.getElementById('pay-modal-title').textContent = (lang==='ar'?'دفعة — ':'Payment — ')+clientName;
-  document.getElementById('pay-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('pay-date').value = todayDMY();
   document.getElementById('pay-amount').value='';
   document.getElementById('pay-notes').value='';
   document.getElementById('payment-modal').classList.add('open');
@@ -3669,7 +3712,7 @@ function savePayment() {
   if (!clientId) { alert(ar?'لا يوجد عميل محدد':'No customer selected'); return; }
   const pay = {
     id:Date.now(), clientId,
-    date:document.getElementById('pay-date').value,
+    date: readDMY('pay-date'),
     type:document.getElementById('pay-type').value,
     amount,
     method:document.getElementById('pay-method').value,
