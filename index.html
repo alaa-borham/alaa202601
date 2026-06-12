@@ -784,17 +784,19 @@ const fbDB   = firebase.firestore();
       <div class="rc-row" style="margin-bottom:6px"><div class="rc-lbl">المبلغ:</div><div class="rc-val rc-money" id="rc-amount" style="text-align:center"></div></div>
       <div class="rc-bar"></div>
       <div class="rc-row"><div class="rc-lbl">ذلك قيمة :</div><div class="rc-val" id="rc-desc" style="text-align:center"></div></div>
-      <div class="rc-row" style="align-items:center">
+      <div class="rc-row" style="align-items:center" id="rc-due-row">
         <div class="rc-lbl">المبلغ المستحق:</div>
         <div class="rc-val rc-money" id="rc-due-words"></div>
-        <div class="rc-paid-green">تم دفع هذا المبلغ عن طريق</div>
       </div>
       <div class="rc-row" style="align-items:center">
         <div class="rc-lbl">المبلغ المدفوع:</div>
         <div class="rc-val rc-money" id="rc-paid-words"></div>
-        <div style="display:flex;gap:26px;align-items:center">
-          <span class="rc-check" id="rc-cash">نقدًا <span style="font-size:1.05rem">☑</span></span>
-          <span class="rc-check" id="rc-bank">تحويل بنكي <span style="font-size:1.05rem">☐</span></span>
+        <div style="text-align:center">
+          <div class="rc-paid-green" style="margin-bottom:7px">تم دفع هذا المبلغ عن طريق</div>
+          <div style="display:flex;gap:26px;align-items:center;justify-content:center">
+            <span class="rc-check" id="rc-cash">نقدًا <span style="font-size:1.05rem">☑</span></span>
+            <span class="rc-check" id="rc-bank">تحويل بنكي <span style="font-size:1.05rem">☐</span></span>
+          </div>
         </div>
       </div>
       <div class="rc-row" style="align-items:flex-end">
@@ -3631,6 +3633,7 @@ function printSupVoucherById(pid){
   document.getElementById('rc-desc').textContent = p.notes || 'دفعة لمورد عن مشتريات';
   const remain = Math.max(0, supplierBalance(p.supplierId));
   const due = remain + p.amount;
+  document.getElementById('rc-due-row').style.display = remain > 0 ? '' : 'none';
   document.getElementById('rc-due-words').textContent  = 'فقط مبلغ وقدره: '+tafqeet(due)+' '+curWord()+' لا غير.';
   document.getElementById('rc-paid-words').textContent = 'فقط مبلغ وقدره: '+tafqeet(p.amount)+' '+curWord()+' لا غير.';
   document.getElementById('rc-remain').textContent = remain > 0
@@ -3810,6 +3813,8 @@ function printReceipt(p) {
   const bal = clientBalance(p.clientId);
   const remain = isDsb ? Math.max(0, -bal) : Math.max(0, bal);
   const due = remain + p.amount;
+  // سطر المستحق يظهر فقط عند الدفعة الجزئية (يوجد متبقٍ) — توثيق الدين بتوقيع العميل
+  document.getElementById('rc-due-row').style.display = remain > 0 ? '' : 'none';
   document.getElementById('rc-due-words').textContent  = 'فقط مبلغ وقدره: '+tafqeet(due)+' '+curWord()+' لا غير.';
   document.getElementById('rc-paid-words').textContent = 'فقط مبلغ وقدره: '+tafqeet(p.amount)+' '+curWord()+' لا غير.';
   document.getElementById('rc-remain').textContent = remain > 0
