@@ -3165,8 +3165,8 @@ function printReceipt(p) {
   const c = customers.find(x=>String(x.id)===String(p.clientId));
   document.getElementById('rc-title').textContent = isDsb ? 'سند صرف' : 'سند قبض';
   document.getElementById('rc-from-lbl').textContent = isDsb ? 'يُصرف إلى:' : 'استلمت من:';
-  document.getElementById('rc-num').textContent  = toArDigits(String(isDsb ? p.dsbNum : p.rcptNum).padStart(6,'0'));
-  document.getElementById('rc-date').textContent = toArDigits(fmtDate(p.date));
+  document.getElementById('rc-num').textContent  = String(isDsb ? p.dsbNum : p.rcptNum).padStart(6,'0');
+  document.getElementById('rc-date').textContent = fmtDate(p.date);
   document.getElementById('rc-from').textContent = c ? c.name : '-';
   document.getElementById('rc-amount').textContent = toArDigits(formatNum(p.amount.toFixed(2)))+' ريال سعودي';
   document.getElementById('rc-desc').textContent = p.notes || (isDsb ? 'إعادة مبلغ للعميل' : 'دفعة من الحساب');
