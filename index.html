@@ -117,6 +117,7 @@ body.ltr .lang-btn{left:auto;right:18px}
 .side-panel{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-start;justify-content:flex-end}
 /* نموذج العميل يُفتح فوق نافذة قائمة العملاء (z-index أعلى من .moverlay) */
 #customer-panel{z-index:350}
+#measure-panel{z-index:350}
 /* نافذتا الفروع وQR تُفتحان فوق نوافذ أخرى */
 #branches-modal,#qr-modal,#sup-stmt-modal{z-index:355}
 #supplier-panel{z-index:365}
@@ -262,11 +263,22 @@ body.ltr .lang-btn{left:auto;right:18px}
   body{background:white}
   #print-screen{background:white;padding:0}
   #receipt-screen>div{background:white !important;padding:0 !important;min-height:0 !important}
+  #meas-print-screen>div{background:white !important;padding:0 !important;min-height:0 !important}
   .pactions,.lang-btn,.top-bar{display:none}
   .inv-print{box-shadow:none;width:100%;padding:16mm 8mm 8mm;min-height:0}
   .rcpt-print{box-shadow:none;width:100%;margin-top:10mm}
+  .meas-print{box-shadow:none;width:100%;margin-top:8mm}
   #print-datetime{position:fixed;bottom:0;left:0;right:0;margin:0}
 }
+/* ═══ بطاقة القياس المطبوعة */
+.meas-print{background:white;max-width:820px;margin:0 auto;padding:24px 28px;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,.25);direction:rtl}
+.meas-print .mp-head{display:flex;align-items:center;gap:14px;border-bottom:2.5px solid #2e7d32;padding-bottom:10px;margin-bottom:14px}
+.meas-print .mp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin:12px 0}
+.meas-print .mp-cell{border:1.5px solid #c5e1a5;border-radius:8px;padding:7px 10px;text-align:center}
+.meas-print .mp-cell .k{font-size:.74rem;color:#666;font-weight:600}
+.meas-print .mp-cell .v{font-size:1.25rem;font-weight:800;color:#1b5e20;direction:ltr}
+/* ═══ شارة نوع الموعد */
+.ap-badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.76rem;font-weight:700}
 /* الهوامش العلوية والسفلية صفر: تمنع المتصفح من طباعة سطريه (التاريخ أعلى والرابط أسفل) — المسافات معوضة داخل الفاتورة */
 @page{size:A4 portrait;margin:0 10mm}
 </style>
@@ -416,6 +428,8 @@ const fbDB   = firebase.firestore();
     <div class="dash-card" onclick="newInvoice()" data-perm="invoices"><div class="icon">➕</div><h3 data-i18n="newInvoice">فاتورة جديدة</h3><p data-i18n="newInvoiceSub">إنشاء فاتورة</p></div>
     <div class="dash-card" onclick="showScreen('products-screen')" data-perm="products"><div class="icon">📦</div><h3 data-i18n="warehouse">المستودع</h3><p data-i18n="warehouseSub">الأصناف والمخزون</p></div>
     <div class="dash-card" onclick="showCustomers()" data-perm="customers"><div class="icon">👥</div><h3 data-i18n="customers">العملاء</h3><p data-i18n="customersSub">بيانات العملاء</p></div>
+    <div class="dash-card" onclick="showMeasurements()" data-perm="tailoring"><div class="icon">📐</div><h3>القياسات</h3><p>قياسات الخياطة وقوالبها</p></div>
+    <div class="dash-card" onclick="showAppointments()" data-perm="appointments"><div class="icon">📅</div><h3>المواعيد</h3><p>قياس، بروفة، استلام</p></div>
     <div class="dash-card" onclick="showExpenses()" data-perm="expenses"><div class="icon">💸</div><h3>المصروفات</h3><p>إيجار، رواتب، تشغيل</p></div>
     <div class="dash-card" onclick="showVouchersLog()"><div class="icon">📒</div><h3>سجل السندات</h3><p>قبض وصرف — بحث وطباعة</p></div>
     <div class="dash-card" onclick="showSuppliers()" data-perm="purchases"><div class="icon">🚚</div><h3>المشتريات</h3><p>الموردون وفواتير الشراء</p></div>
@@ -810,6 +824,44 @@ const fbDB   = firebase.firestore();
   </div>
 </div>
 
+<!-- ═══════════════ MEASUREMENT CARD PRINT (بطاقة قياس) -->
+<div id="meas-print-screen" class="screen">
+  <div style="min-height:100vh;background:#aaa;padding:18px">
+    <div class="pactions">
+      <button class="btn btn-success" onclick="window.print()">🖨️ طباعة بطاقة القياس</button>
+      <button class="btn btn-primary" onclick="showScreen('dashboard')">← رجوع</button>
+    </div>
+    <div class="meas-print">
+      <div class="mp-head">
+        <div>
+          <img id="mp-hdr-img" alt="" style="display:none;max-height:52px;object-fit:contain">
+          <svg id="mp-hdr-svg" width="108" height="37" viewBox="0 0 340 116"><use href="#level7logo"/></svg>
+        </div>
+        <div style="text-align:center;flex:1">
+          <div id="mp-co-name" style="font-weight:800;color:#1b5e20;font-size:1.05rem"></div>
+          <div id="mp-co-sub" style="font-size:.8rem;color:#666"></div>
+        </div>
+        <div style="text-align:center;font-size:.82rem;color:#555">
+          <div>بطاقة قياس</div>
+          <div id="mp-date" style="font-weight:700;direction:ltr"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:.92rem;margin-bottom:4px">
+        <div>👤 العميل: <b id="mp-client"></b></div>
+        <div>🔢 رقم العميل: <b id="mp-client-num"></b></div>
+        <div>📞 <b id="mp-phone" style="direction:ltr;display:inline-block"></b></div>
+        <div>✂️ القالب: <b id="mp-template" style="color:#1b5e20"></b></div>
+      </div>
+      <div class="mp-grid" id="mp-grid"></div>
+      <div id="mp-notes" style="background:#f9fbe7;border:1.5px dashed #c0ca33;border-radius:8px;padding:9px 13px;font-size:.88rem;display:none"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:26px;font-size:.85rem;color:#444">
+        <div style="text-align:center;min-width:170px"><div style="height:34px"></div><div style="border-top:1.5px solid #777;padding-top:4px;font-weight:700">القصّاص / الخياط</div></div>
+        <div style="text-align:center;min-width:170px"><div style="height:34px"></div><div style="border-top:1.5px solid #777;padding-top:4px;font-weight:700">المسؤول</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ SVG LOGO DEFINITION (brand-style recreation) -->
 <svg width="0" height="0" style="position:absolute">
   <defs>
@@ -928,6 +980,111 @@ const fbDB   = firebase.firestore();
         <tbody id="customers-tbody"></tbody>
       </table>
       <div id="cust-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا يوجد عملاء بعد — اضغط "إضافة عميل جديد"</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: MEASUREMENTS (سجل القياسات) -->
+<div class="moverlay" id="measurements-modal">
+  <div class="mbox" style="max-width:780px">
+    <div class="mhdr"><h3>📐 سجل القياسات</h3><button class="mcls" onclick="closeModal('measurements-modal')">✕</button></div>
+    <div style="padding:11px 13px;border-bottom:1px solid #eee;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-success" onclick="openMeasurePanel()">＋ قياس جديد</button>
+      <select id="ms-filter-client" onchange="renderMeasurements()" style="padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit;min-width:170px">
+        <option value="">— كل العملاء —</option>
+      </select>
+      <select id="ms-filter-template" onchange="renderMeasurements()" style="padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
+        <option value="">— كل القوالب —</option>
+      </select>
+      <input type="text" id="ms-search" placeholder="🔍 بحث بالاسم أو الرقم..." oninput="renderMeasurements()"
+        style="flex:1;min-width:140px;padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
+    </div>
+    <div class="mlist">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">التاريخ</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">العميل</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">القالب</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">أهم القياسات (سم)</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">إجراءات</th>
+        </tr></thead>
+        <tbody id="meas-tbody"></tbody>
+      </table>
+      <div id="ms-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا توجد قياسات بعد — اضغط "قياس جديد"</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SIDE PANEL: MEASUREMENT (أخذ / تعديل قياس) -->
+<div class="side-panel" id="measure-panel">
+  <div class="spb">
+    <div class="sph"><h3 id="ms-panel-title">📐 قياس جديد</h3><button class="spc" onclick="closeModal2('measure-panel')">✕</button></div>
+    <div class="spbody">
+      <input type="hidden" id="ms-edit-id">
+      <div class="fg"><label>العميل <span class="req">*</span></label><select id="ms-client"></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label>قالب القياس</label><select id="ms-template" onchange="renderMeasFields()"></select></div>
+        <div class="fg"><label>التاريخ</label><span class="dmy"><input type="text" id="ms-date" placeholder="يوم/شهر/سنة" inputmode="numeric"><button type="button" class="dmy-btn" onclick="dmyPick(this)" tabindex="-1">📅</button><input type="date" class="dmy-hidden" tabindex="-1"></span></div>
+      </div>
+      <div style="font-size:.78rem;color:#888;margin-bottom:6px">القياسات بالسنتيمتر — اترك أي حقل لا تحتاجه فارغاً</div>
+      <div id="ms-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px"></div>
+      <div id="ms-warnings" style="margin-top:8px"></div>
+      <div class="fg" style="margin-top:8px"><label>ملاحظات الموديل (الياقة، الجيب، الكبك، التطريز...)</label><textarea id="ms-notes" rows="2"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-success" style="flex:1" onclick="saveMeasurement()">✔ حفظ القياس</button>
+        <button class="btn" style="background:#9e9e9e;color:white" onclick="closeModal2('measure-panel')">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: APPOINTMENTS (المواعيد) -->
+<div class="moverlay" id="appointments-modal">
+  <div class="mbox" style="max-width:780px">
+    <div class="mhdr"><h3>📅 المواعيد</h3><button class="mcls" onclick="closeModal('appointments-modal')">✕</button></div>
+    <div style="padding:13px;border-bottom:1px solid #eee">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px;align-items:end">
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">العميل <span class="req">*</span></label>
+          <select id="ap-client" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></select></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">النوع</label>
+          <select id="ap-type" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
+            <option>قياس</option><option>بروفة</option><option>استلام</option>
+          </select></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">التاريخ</label>
+          <span class="dmy"><input type="text" id="ap-date" placeholder="يوم/شهر/سنة" inputmode="numeric" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"><button type="button" class="dmy-btn" onclick="dmyPick(this)" tabindex="-1">📅</button><input type="date" class="dmy-hidden" tabindex="-1"></span></div>
+        <div><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">الوقت</label>
+          <input type="time" id="ap-time" style="width:100%;padding:6px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
+        <div style="grid-column:span 2"><label style="font-size:.79rem;font-weight:600;color:#555;display:block;margin-bottom:2px">ملاحظات</label>
+          <input type="text" id="ap-notes" style="width:100%;padding:7px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit"></div>
+        <button class="btn btn-success" onclick="addAppointment()" style="height:36px">حجز</button>
+      </div>
+      <div id="ap-err" style="color:#c62828;font-size:.8rem;min-height:16px;margin-top:6px"></div>
+    </div>
+    <div style="padding:8px 13px;border-bottom:1px solid #eee;display:flex;gap:8px;flex-wrap:wrap">
+      <select id="ap-filter" onchange="renderAppointments()" style="padding:6px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
+        <option value="قادمة">⏳ القادمة</option>
+        <option value="اليوم">📍 اليوم</option>
+        <option value="">الكل</option>
+        <option value="سابقة">السابقة</option>
+      </select>
+      <select id="ap-filter-type" onchange="renderAppointments()" style="padding:6px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
+        <option value="">كل الأنواع</option>
+        <option>قياس</option><option>بروفة</option><option>استلام</option>
+      </select>
+    </div>
+    <div class="mlist">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">التاريخ</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الوقت</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">العميل</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">النوع</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الحالة</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">إجراءات</th>
+        </tr></thead>
+        <tbody id="appts-tbody"></tbody>
+      </table>
+      <div id="ap-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا توجد مواعيد — احجز أول موعد من النموذج بالأعلى</div>
     </div>
   </div>
 </div>
@@ -1217,6 +1374,17 @@ const fbDB   = firebase.firestore();
       <div class="fg"><label>البريد الإلكتروني</label><input type="email" id="c2-email" style="direction:ltr" placeholder="name@example.com"></div>
       <div class="fg"><label>العنوان</label><input type="text" id="c2-address" placeholder="المدينة - الحي - الشارع"></div>
       <div class="fg"><label>الرقم الضريبي (إن وجد)</label><input type="text" id="c2-tax" style="direction:ltr"></div>
+      <div style="background:#f1f8e9;border-radius:10px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:.8rem;font-weight:700;color:#2e7d32;margin-bottom:8px">📐 بيانات الخياطة (اختيارية)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 10px">
+          <div class="fg" style="margin:0"><label>الجنسية</label><input type="text" id="c2-nationality"></div>
+          <div class="fg" style="margin:0"><label>الجنس</label>
+            <select id="c2-gender"><option value=""></option><option>ذكر</option><option>أنثى</option></select></div>
+          <div class="fg" style="margin:0"><label>العمر (سنة)</label><input type="number" id="c2-age" min="0" max="120"></div>
+          <div class="fg" style="margin:0"><label>الطول (سم)</label><input type="number" id="c2-height" min="0" max="250"></div>
+          <div class="fg" style="margin:0"><label>الوزن (كجم)</label><input type="number" id="c2-weight" min="0" max="400"></div>
+        </div>
+      </div>
       <div class="fg"><label>ملاحظات</label><textarea id="c2-notes" rows="2"></textarea></div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-success" style="flex:1" onclick="saveCustomerFull()">✔ حفظ العميل</button>
@@ -1315,7 +1483,8 @@ function lsDel(k)      { localStorage.removeItem(lsKey(k)); _dirtyKeys.add(k); s
 // ── مزامنة سحابية: كل بيانات المنشأة تُحفظ في Firestore وتُستعاد من أي جهاز
 const CLOUD_KEYS = ['invoices','deletedInvoices','customers','products','payments',
                     'nextInvNum','nextProdSeq','appSettings','logoImg','bgImg',
-                    'logoWidth','bgWidth','bgOpacity','branches','nextRcptNum','nextDsbNum','suppliers','supPayments','expenses'];
+                    'logoWidth','bgWidth','bgOpacity','branches','nextRcptNum','nextDsbNum','suppliers','supPayments','expenses',
+                    'measurements','appointments'];
 let _cloudTimer = null;
 function scheduleCloudSave() {
   if (!currentAccId) return;
@@ -1368,7 +1537,7 @@ function _dailyBackup(uid, data) {
 }
 
 // ═══════════════ STATE (loaded per account)
-let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], branches=[], suppliers=[], supPayments=[], expenses=[];
+let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], branches=[], suppliers=[], supPayments=[], expenses=[], measurements=[], appointments=[];
 let nextInvNum=1, nextProdSeq=1, nextRcptNum=1, nextDsbNum=1;
 let lang = localStorage.getItem('lang') || 'ar';
 const DEF_SETTINGS = {
@@ -1396,6 +1565,8 @@ function loadAccountData() {
   suppliers       = JSON.parse(lsGet('suppliers','[]'));
   supPayments     = JSON.parse(lsGet('supPayments','[]'));
   expenses        = JSON.parse(lsGet('expenses','[]'));
+  measurements    = JSON.parse(lsGet('measurements','[]'));
+  appointments    = JSON.parse(lsGet('appointments','[]'));
   nextInvNum      = parseInt(lsGet('nextInvNum','1'));
   nextRcptNum     = parseInt(lsGet('nextRcptNum','1'));
   nextDsbNum      = parseInt(lsGet('nextDsbNum','1'));
@@ -2054,14 +2225,17 @@ function showScreen(id) {
 function isSaleInv(i){ return i.type!=='فاتورة مرتجع' && i.type!=='فاتورة مشتريات' && i.type!=='مرتجع مشتريات'; }
 function renderDashStats() {
   const total = invoices.filter(isSaleInv).reduce((s,i)=>s+i.grand,0);
+  const today = new Date().toISOString().split('T')[0];
+  const apToday = appointments.filter(a=>a.date===today && a.status!=='ملغي').length;
   const lbls = lang==='ar'
-    ? ['إجمالي الفواتير','إجمالي المبيعات','أصناف المستودع','عدد العملاء']
-    : ['Total invoices','Total sales','Warehouse products','Customers'];
+    ? ['إجمالي الفواتير','إجمالي المبيعات','أصناف المستودع','عدد العملاء','مواعيد اليوم']
+    : ['Total invoices','Total sales','Warehouse products','Customers','Appointments today'];
   document.getElementById('dash-stats').innerHTML = `
     <div class="stat-box"><div class="num">${invoices.length}</div><div class="lbl">${lbls[0]}</div></div>
     <div class="stat-box"><div class="num">${formatNum(total)}</div><div class="lbl">${lbls[1]}</div></div>
     <div class="stat-box"><div class="num">${products.length}</div><div class="lbl">${lbls[2]}</div></div>
     <div class="stat-box"><div class="num">${customers.length}</div><div class="lbl">${lbls[3]}</div></div>
+    <div class="stat-box" style="cursor:pointer${apToday?';border-color:#ffb300':''}" onclick="showAppointments()"><div class="num">${apToday}</div><div class="lbl">${lbls[4]}</div></div>
   `;
 }
 
@@ -3022,13 +3196,15 @@ const PERM_DEFS = [
   ['invoices',  '🧾 الفواتير (عرض وإنشاء وطباعة)'],
   ['products',  '📦 المستودع والأصناف'],
   ['customers', '👥 العملاء والكشوف والدفعات'],
+  ['tailoring', '📐 القياسات (الخياطة)'],
+  ['appointments', '📅 المواعيد'],
   ['purchases', '🚚 المشتريات والموردون'],
   ['expenses',  '💸 المصروفات'],
   ['analytics', '📊 التحليلات والتقارير'],
   ['archive',   '🗂️ الأرشيف'],
   ['settings',  '⚙️ الإعدادات والشعار (حساس)'],
 ];
-const DEFAULT_PERMS = { invoices:true, products:true, customers:true, purchases:true, expenses:true, analytics:true, archive:true, settings:false };
+const DEFAULT_PERMS = { invoices:true, products:true, customers:true, tailoring:true, appointments:true, purchases:true, expenses:true, analytics:true, archive:true, settings:false };
 const PERM_SCREENS = {
   'invoice-list':'invoices', 'invoice-form-screen':'invoices', 'print-screen':'invoices',
   'receipt-screen':'customers',
@@ -3250,6 +3426,11 @@ function openCustomerPanel(id) {
   document.getElementById('c2-email').value   = c ? (c.email||'') : '';
   document.getElementById('c2-address').value = c ? (c.address||'') : '';
   document.getElementById('c2-tax').value     = c ? (c.taxNo||'') : '';
+  document.getElementById('c2-nationality').value = c ? (c.nationality||'') : '';
+  document.getElementById('c2-gender').value  = c ? (c.gender||'') : '';
+  document.getElementById('c2-age').value     = c ? (c.age||'') : '';
+  document.getElementById('c2-height').value  = c ? (c.height||'') : '';
+  document.getElementById('c2-weight').value  = c ? (c.weight||'') : '';
   document.getElementById('c2-notes').value   = c ? (c.notes||'') : '';
   document.getElementById('customer-panel').classList.add('open');
 }
@@ -3270,6 +3451,11 @@ function saveCustomerFull() {
     email:   document.getElementById('c2-email').value.trim(),
     address: document.getElementById('c2-address').value.trim(),
     taxNo:   document.getElementById('c2-tax').value.trim(),
+    nationality: document.getElementById('c2-nationality').value.trim(),
+    gender:  document.getElementById('c2-gender').value,
+    age:     document.getElementById('c2-age').value,
+    height:  document.getElementById('c2-height').value,
+    weight:  document.getElementById('c2-weight').value,
     notes:   document.getElementById('c2-notes').value.trim(),
   };
   if (editId) {
@@ -3316,11 +3502,267 @@ function renderCustomers() {
       <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;direction:ltr">${escHtml(c.phone||'-')}</td>
       <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">
         <button class="btn btn-primary btn-sm" onclick="openCustomerPanel(${c.id})">${ar?'✏️ تعديل':'✏️ Edit'}</button>
+        <button class="btn btn-success btn-sm" onclick="openClientMeasurements(${c.id})" title="سجل القياسات">📐</button>
         <button class="btn btn-info btn-sm" onclick="showStatement(${c.id},'${escHtml(c.name)}')">${ar?'كشف':'Statement'}</button>
         <button class="btn btn-warning btn-sm" onclick="openAddPaymentForClient(${c.id},'${escHtml(c.name)}')">${ar?'دفعة':'Payment'}</button>
         <button class="btn btn-danger btn-sm" onclick="deleteCustomer(${c.id})">${ar?'حذف':'Delete'}</button>
       </td>
     </tr>`;}).join('');
+}
+
+// ═══════════════ MEASUREMENT ENGINE — محرك القياسات (قاموس + قوالب + قواعد تحقق)
+// قاموس القياسات: مفتاح ثابت → التسمية العربية (كل القيم بالسنتيمتر)
+const MEAS_DICT = {
+  length:'الطول الكلي', shoulder:'الكتف', sleeve:'طول الكم', neck:'الرقبة',
+  chest:'الصدر', waist:'الخصر', hip:'الأرداف', armhole:'فتحة الإبط',
+  upperArm:'محيط العضد', cuff:'وسع الكبك', bottom:'وسع الأسفل',
+  back:'عرض الظهر', wrist:'المعصم', jacketLen:'طول الجاكيت',
+  outseam:'طول البنطلون (خارجي)', inseam:'الطول الداخلي', rise:'الارتفاع (الحجاب)',
+  thigh:'الفخذ', knee:'الركبة', legOpen:'فتحة الرجل',
+};
+// قوالب القياس: نوع الملبس → مفاتيح القياسات المطلوبة
+const MEAS_TEMPLATES = {
+  'ثوب سعودي': ['length','shoulder','sleeve','neck','chest','waist','hip','armhole','upperArm','cuff','bottom'],
+  'ثوب أطفال': ['length','shoulder','sleeve','neck','chest','waist','hip','armhole','upperArm','cuff','bottom'],
+  'قميص':      ['length','shoulder','sleeve','neck','chest','waist','hip','armhole','cuff'],
+  'بنطلون':    ['outseam','inseam','rise','waist','hip','thigh','knee','legOpen'],
+  'بدلة':      ['jacketLen','shoulder','sleeve','chest','waist','hip','back','upperArm','wrist','outseam','inseam','thigh','legOpen'],
+  'عباية':     ['length','shoulder','sleeve','chest','hip','cuff','bottom'],
+  'يونيفورم':  ['length','shoulder','sleeve','neck','chest','waist','hip'],
+};
+// قواعد التحقق: تكتشف القياسات غير المنطقية قبل الحفظ (تحذير لا منع)
+const MEAS_RULES = [
+  v => v.hip && v.waist && v.hip < v.waist && 'الأرداف أصغر من الخصر — تأكد من القياس',
+  v => v.armhole && v.upperArm && v.armhole <= v.upperArm && 'فتحة الإبط يجب أن تكون أكبر من محيط العضد',
+  v => v.neck && v.chest && v.neck >= v.chest && 'الرقبة أكبر من الصدر أو تساويه — غير منطقي',
+  v => v.sleeve && v.length && (v.sleeve < v.length*0.3 || v.sleeve > v.length*0.6) && 'طول الكم غير متناسب مع الطول الكلي',
+  v => v.waist && v.chest && v.waist > v.chest*1.4 && 'الخصر أكبر من الصدر بفارق كبير — تأكد من القياس',
+  v => v.knee && v.thigh && v.knee > v.thigh && 'الركبة أوسع من الفخذ — تأكد من القياس',
+  v => v.inseam && v.outseam && v.inseam >= v.outseam && 'الطول الداخلي يجب أن يكون أقل من الطول الخارجي',
+];
+function _custById(id){ return customers.find(c=>String(c.id)===String(id)); }
+function _custName(id){ const c=_custById(id); return c ? c.name : '(عميل محذوف)'; }
+function _custOptions(selectedId){
+  return [...customers].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ar'))
+    .map(c=>`<option value="${c.id}" ${String(c.id)===String(selectedId)?'selected':''}>${c.num?c.num+' — ':''}${escHtml(c.name)}</option>`).join('');
+}
+
+function showMeasurements(filterClientId) {
+  if (!canAccess('tailoring')) { permDenied('tailoring'); return; }
+  document.getElementById('ms-filter-client').innerHTML =
+    '<option value="">— كل العملاء —</option>' + _custOptions();
+  document.getElementById('ms-filter-client').value = filterClientId ? String(filterClientId) : '';
+  document.getElementById('ms-filter-template').innerHTML =
+    '<option value="">— كل القوالب —</option>' + Object.keys(MEAS_TEMPLATES).map(t=>`<option>${t}</option>`).join('');
+  renderMeasurements();
+  document.getElementById('measurements-modal').classList.add('open');
+}
+function openClientMeasurements(cid){ showMeasurements(cid); }
+
+function renderMeasurements() {
+  const fc = document.getElementById('ms-filter-client').value;
+  const ft = document.getElementById('ms-filter-template').value;
+  const q  = (document.getElementById('ms-search').value||'').trim().toLowerCase();
+  const list = measurements
+    .filter(m => (!fc || String(m.clientId)===fc) && (!ft || m.template===ft))
+    .filter(m => {
+      if (!q) return true;
+      const c = _custById(m.clientId);
+      return (c && ((c.name||'').toLowerCase().includes(q) || String(c.num||'').includes(q)))
+        || (m.notes||'').toLowerCase().includes(q);
+    })
+    .sort((a,b)=> (b.date||'').localeCompare(a.date||'') || b.id-a.id);
+  document.getElementById('ms-empty').style.display = list.length ? 'none' : 'block';
+  document.getElementById('meas-tbody').innerHTML = list.map(m=>{
+    const keys = MEAS_TEMPLATES[m.template]||Object.keys(m.values||{});
+    const summary = keys.filter(k=>m.values && m.values[k])
+      .slice(0,4).map(k=>MEAS_DICT[k]+': <b>'+formatNum(m.values[k])+'</b>').join(' • ');
+    return `
+    <tr>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">${isoToDMY(m.date)}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${escHtml(_custName(m.clientId))}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${escHtml(m.template)}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-size:.78rem;color:#555">${summary||'-'}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">
+        <button class="btn btn-primary btn-sm" onclick="openMeasurePanel(${m.id})" title="تعديل">✏️</button>
+        <button class="btn btn-info btn-sm" onclick="printMeasurement(${m.id})" title="طباعة بطاقة القياس">🖨️</button>
+        <button class="btn btn-warning btn-sm" onclick="copyMeasurement(${m.id})" title="قياس جديد بنفس القيم">📋</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteMeasurement(${m.id})" title="حذف">🗑</button>
+      </td>
+    </tr>`;}).join('');
+}
+
+function openMeasurePanel(editId, presetClientId, presetRecord) {
+  if (!customers.length) { alert('أضف عميلاً أولاً من شاشة العملاء'); return; }
+  const m = editId ? measurements.find(x=>x.id===editId) : null;
+  const src = m || presetRecord || null;
+  document.getElementById('ms-panel-title').textContent = m ? '✏️ تعديل قياس' : '📐 قياس جديد';
+  document.getElementById('ms-edit-id').value = m ? m.id : '';
+  document.getElementById('ms-client').innerHTML = _custOptions(src ? src.clientId : presetClientId);
+  document.getElementById('ms-template').innerHTML =
+    Object.keys(MEAS_TEMPLATES).map(t=>`<option ${src && src.template===t?'selected':''}>${t}</option>`).join('');
+  document.getElementById('ms-date').value = m ? isoToDMY(m.date) : todayDMY();
+  document.getElementById('ms-notes').value = src ? (src.notes||'') : '';
+  renderMeasFields(src ? src.values : null);
+  document.getElementById('measure-panel').classList.add('open');
+}
+function renderMeasFields(values) {
+  const tpl = document.getElementById('ms-template').value;
+  const keys = MEAS_TEMPLATES[tpl] || [];
+  document.getElementById('ms-fields').innerHTML = keys.map(k=>`
+    <div class="fg" style="margin:0">
+      <label style="font-size:.78rem">${MEAS_DICT[k]||k}</label>
+      <input type="number" id="msf-${k}" min="0" step="0.5" style="direction:ltr;text-align:center"
+        value="${values && values[k] != null ? values[k] : ''}" oninput="validateMeasLive()">
+    </div>`).join('');
+  validateMeasLive();
+}
+function _readMeasValues() {
+  const tpl = document.getElementById('ms-template').value;
+  const v = {};
+  (MEAS_TEMPLATES[tpl]||[]).forEach(k=>{
+    const n = parseFloat(document.getElementById('msf-'+k)?.value);
+    if (!isNaN(n) && n > 0) v[k] = n;
+  });
+  return v;
+}
+function measWarnings(v){ return MEAS_RULES.map(r=>r(v)).filter(Boolean); }
+function validateMeasLive() {
+  const warns = measWarnings(_readMeasValues());
+  document.getElementById('ms-warnings').innerHTML = warns.map(w=>
+    `<div style="background:#fff3e0;border:1.5px solid #ffb300;color:#e65100;border-radius:8px;padding:6px 10px;font-size:.8rem;margin-bottom:4px">⚠️ ${w}</div>`).join('');
+}
+function saveMeasurement() {
+  const clientId = document.getElementById('ms-client').value;
+  if (!clientId) { alert('اختر العميل'); return; }
+  const values = _readMeasValues();
+  if (!Object.keys(values).length) { alert('أدخل قياساً واحداً على الأقل'); return; }
+  const date = readDMY('ms-date');
+  const warns = measWarnings(values);
+  if (warns.length && !confirm('⚠️ توجد تحذيرات في القياسات:\n\n• '+warns.join('\n• ')+'\n\nحفظ على أي حال؟')) return;
+  const data = {
+    clientId, date,
+    template: document.getElementById('ms-template').value,
+    values,
+    notes: document.getElementById('ms-notes').value.trim(),
+  };
+  const editId = document.getElementById('ms-edit-id').value;
+  if (editId) {
+    const m = measurements.find(x=>String(x.id)===editId);
+    if (m) Object.assign(m, data);
+  } else {
+    measurements.push({ id: Date.now(), ...data });
+  }
+  save('measurements');
+  closeModal2('measure-panel');
+  renderMeasurements();
+}
+function deleteMeasurement(id) {
+  if (!confirm('حذف هذا القياس نهائياً؟')) return;
+  measurements = measurements.filter(m=>m.id!==id);
+  save('measurements'); renderMeasurements();
+}
+// قياس جديد بنفس قيم قياس سابق (يحافظ على سجل القياسات بدل تعديل القديم)
+function copyMeasurement(id) {
+  const m = measurements.find(x=>x.id===id); if (!m) return;
+  openMeasurePanel(null, null, { clientId:m.clientId, template:m.template, values:{...m.values}, notes:m.notes });
+}
+function printMeasurement(id) {
+  const m = measurements.find(x=>x.id===id); if (!m) return;
+  const c = _custById(m.clientId);
+  closeModal('measurements-modal'); closeModal('customers-modal');
+  document.getElementById('mp-co-name').textContent = settings.coName;
+  document.getElementById('mp-co-sub').textContent  = settings.coSub;
+  document.getElementById('mp-date').textContent    = isoToDMY(m.date);
+  document.getElementById('mp-client').textContent  = c ? c.name : '(عميل محذوف)';
+  document.getElementById('mp-client-num').textContent = c && c.num ? c.num : '-';
+  document.getElementById('mp-phone').textContent   = c && c.phone ? c.phone : '-';
+  document.getElementById('mp-template').textContent = m.template;
+  const keys = MEAS_TEMPLATES[m.template]||Object.keys(m.values||{});
+  document.getElementById('mp-grid').innerHTML = keys.filter(k=>m.values && m.values[k]).map(k=>`
+    <div class="mp-cell"><div class="k">${MEAS_DICT[k]||k}</div><div class="v">${formatNum(m.values[k])}</div></div>`).join('');
+  const notesEl = document.getElementById('mp-notes');
+  notesEl.style.display = m.notes ? 'block' : 'none';
+  notesEl.innerHTML = m.notes ? '📝 <b>الموديل:</b> ' + escHtml(m.notes) : '';
+  const logo = lsGet('logoImg', null);
+  const img = document.getElementById('mp-hdr-img'), svg = document.getElementById('mp-hdr-svg');
+  if (logo) { img.src = logo; img.style.display='block'; svg.style.display='none'; }
+  else { img.style.display='none'; svg.style.display='none'; }
+  showScreen('meas-print-screen');
+}
+
+// ═══════════════ APPOINTMENTS — المواعيد (قياس / بروفة / استلام)
+function showAppointments() {
+  if (!canAccess('appointments')) { permDenied('appointments'); return; }
+  if (!customers.length) { alert('أضف عميلاً أولاً من شاشة العملاء'); return; }
+  document.getElementById('ap-client').innerHTML = _custOptions();
+  document.getElementById('ap-date').value = todayDMY();
+  renderAppointments();
+  document.getElementById('appointments-modal').classList.add('open');
+}
+function addAppointment() {
+  const errEl = document.getElementById('ap-err');
+  errEl.textContent = '';
+  const clientId = document.getElementById('ap-client').value;
+  if (!clientId) { errEl.textContent = 'اختر العميل'; return; }
+  const date = readDMY('ap-date');
+  appointments.push({
+    id: Date.now(), clientId, date,
+    type:  document.getElementById('ap-type').value,
+    time:  document.getElementById('ap-time').value,
+    notes: document.getElementById('ap-notes').value.trim(),
+    status:'قادم',
+  });
+  save('appointments');
+  document.getElementById('ap-time').value = '';
+  document.getElementById('ap-notes').value = '';
+  renderAppointments();
+}
+function setAppStatus(id, st) {
+  const a = appointments.find(x=>x.id===id); if (!a) return;
+  a.status = st;
+  save('appointments'); renderAppointments();
+}
+function deleteAppointment(id) {
+  if (!confirm('حذف الموعد نهائياً؟')) return;
+  appointments = appointments.filter(a=>a.id!==id);
+  save('appointments'); renderAppointments();
+}
+function renderAppointments() {
+  const today = new Date().toISOString().split('T')[0];
+  const f  = document.getElementById('ap-filter').value;
+  const ft = document.getElementById('ap-filter-type').value;
+  let list = appointments.filter(a=>{
+    if (ft && a.type!==ft) return false;
+    if (f==='اليوم')  return a.date===today;
+    if (f==='قادمة')  return a.date>=today && a.status==='قادم';
+    if (f==='سابقة')  return a.date<today;
+    return true;
+  });
+  const asc = f==='قادمة' || f==='اليوم';
+  list.sort((a,b)=>{
+    const k = (a.date+(a.time||'')).localeCompare(b.date+(b.time||''));
+    return asc ? k : -k;
+  });
+  document.getElementById('ap-empty').style.display = list.length ? 'none' : 'block';
+  const typeColor = { 'قياس':'background:#e3f2fd;color:#1565c0', 'بروفة':'background:#fff3e0;color:#e65100', 'استلام':'background:#e8f5e9;color:#2e7d32' };
+  const stColor   = { 'قادم':'background:#fff8e1;color:#b28704', 'تم':'background:#e8f5e9;color:#2e7d32', 'ملغي':'background:#eee;color:#888' };
+  document.getElementById('appts-tbody').innerHTML = list.map(a=>`
+    <tr style="${a.date===today && a.status==='قادم' ? 'background:#fffde7' : ''}">
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">${isoToDMY(a.date)}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;direction:ltr">${a.time||'-'}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${escHtml(_custName(a.clientId))}
+        ${a.notes?`<div style="font-size:.72rem;color:#888;font-weight:400">${escHtml(a.notes)}</div>`:''}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center"><span class="ap-badge" style="${typeColor[a.type]||''}">${escHtml(a.type)}</span></td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center"><span class="ap-badge" style="${stColor[a.status]||''}">${escHtml(a.status)}</span></td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">
+        ${a.status==='قادم' ? `
+          <button class="btn btn-success btn-sm" onclick="setAppStatus(${a.id},'تم')" title="تم الحضور">✔</button>
+          <button class="btn btn-warning btn-sm" onclick="setAppStatus(${a.id},'ملغي')" title="إلغاء الموعد">✖</button>` : `
+          <button class="btn btn-primary btn-sm" onclick="setAppStatus(${a.id},'قادم')" title="إعادة تفعيل">↩</button>`}
+        <button class="btn btn-danger btn-sm" onclick="deleteAppointment(${a.id})" title="حذف">🗑</button>
+      </td>
+    </tr>`).join('');
 }
 
 // ═══════════════ نقل المخزون بين المستودعات الثلاثة
@@ -3904,7 +4346,7 @@ function applyBranding() {
 // ═══════════════ UTILS — English numerals everywhere
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function save(key) {
-  const map = {invoices,deletedInvoices,customers,products,payments,branches,suppliers,supPayments,expenses};
+  const map = {invoices,deletedInvoices,customers,products,payments,branches,suppliers,supPayments,expenses,measurements,appointments};
   lsSet(key, JSON.stringify(map[key]));
 }
 function formatNum(n) { return (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2}); }
@@ -4047,7 +4489,17 @@ function exportToExcel() {
     invoices.forEach(i=>i.items.forEach(it=>itemRows.push({ 'رقم الفاتورة':i.invNum, 'التاريخ':i.date,
       'الصنف':it.desc, 'الكمية':it.qty, 'السعر':it.price, 'الخصم':it.disc||0, 'الإجمالي':it.total })));
     const custRows = customers.map(c=>({ 'رقم العميل':c.num, 'الاسم':c.name, 'الهاتف':c.phone||'',
-      'البريد':c.email||'', 'العنوان':c.address||'', 'الرقم الضريبي':c.taxNo||'', 'ملاحظات':c.notes||'' }));
+      'البريد':c.email||'', 'العنوان':c.address||'', 'الرقم الضريبي':c.taxNo||'',
+      'الجنسية':c.nationality||'', 'الجنس':c.gender||'', 'العمر':c.age||'', 'الطول':c.height||'', 'الوزن':c.weight||'',
+      'ملاحظات':c.notes||'' }));
+    const measRows = measurements.map(m=>{
+      const row = { 'التاريخ':m.date, 'العميل':_custName(m.clientId), 'القالب':m.template };
+      Object.keys(m.values||{}).forEach(k=>{ row[MEAS_DICT[k]||k] = m.values[k]; });
+      row['ملاحظات الموديل'] = m.notes||'';
+      return row;
+    });
+    const apRows = appointments.map(a=>({ 'التاريخ':a.date, 'الوقت':a.time||'', 'العميل':_custName(a.clientId),
+      'النوع':a.type, 'الحالة':a.status, 'ملاحظات':a.notes||'' }));
     const prodRows = products.map(p=>({ 'الكود':p.code, 'الاسم':p.name, 'الفئة':p.category||'',
       'الوحدة':p.unit||'', 'سعر البيع':p.sellPrice, 'سعر الشراء':p.isService?'':(p.buyPrice||0),
       'الكمية':p.isService?'خدمة':(p.qty||0) }));
@@ -4058,7 +4510,7 @@ function exportToExcel() {
     const supRows = suppliers.map(s=>({ 'رقم المورد':s.num, 'الاسم':s.name, 'الهاتف':s.phone||'', 'الرقم الضريبي':s.taxNo||'', 'المستحق له':supplierBalance(s.id) }));
     const supPayRows = supPayments.map(p=>{ const s=suppliers.find(x=>String(x.id)===String(p.supplierId)); return { 'رقم السند':p.dsbNum||'', 'التاريخ':p.date, 'المورد':s?s.name:'', 'المبلغ':p.amount, 'الطريقة':p.method||'', 'ملاحظات':p.notes||'' }; });
     const exRows = expenses.map(e=>({ 'التاريخ':e.date, 'الفئة':e.category, 'البيان':e.desc||'', 'الفرع':e.branchName||'المركز', 'المبلغ':e.amount }));
-    [[invRows,'الفواتير'],[itemRows,'بنود الفواتير'],[custRows,'العملاء'],[prodRows,'المستودع'],[payRows,'الدفعات'],[supRows,'الموردون'],[supPayRows,'دفعات الموردين'],[exRows,'المصروفات']]
+    [[invRows,'الفواتير'],[itemRows,'بنود الفواتير'],[custRows,'العملاء'],[measRows,'القياسات'],[apRows,'المواعيد'],[prodRows,'المستودع'],[payRows,'الدفعات'],[supRows,'الموردون'],[supPayRows,'دفعات الموردين'],[exRows,'المصروفات']]
       .forEach(([rows,name])=>{
         const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{'لا توجد بيانات':''}]);
         if (!wb.Workbook) wb.Workbook = {};
