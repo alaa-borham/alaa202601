@@ -435,6 +435,7 @@ const fbDB   = firebase.firestore();
 
         <h4 style="color:#2e7d32;margin:18px 0 12px" data-i18n="setInvoicing">🧾 الفواتير</h4>
         <div class="fg"><label data-i18n="setTax">نسبة الضريبة الافتراضية %</label><input type="number" id="set-tax" min="0" max="100" step="0.5"></div>
+        <div class="fg"><label>الرقم الضريبي للمنشأة (الفاتورة الإلكترونية ZATCA)</label><input type="text" id="set-vat-no" style="direction:ltr" placeholder="3xxxxxxxxxxxxx03" maxlength="15"></div>
         <div class="fg"><label data-i18n="setNextInv">رقم الفاتورة العام التالي</label><input type="number" id="set-next-inv" min="1"></div>
         <div class="fg"><label data-i18n="setDefPay">طريقة الدفع الافتراضية</label>
           <select id="set-def-pay">
@@ -687,6 +688,7 @@ const fbDB   = firebase.firestore();
           <div class="name" id="p-co-name">LEVEL7 &nbsp; لتلبية احتياجات المتخصصين والهواه في مجال الخياطة</div>
           <div class="sub" id="p-co-sub">تصميم ـ تدريب ـ استشارات ـ مستلزمات ـ ادوات ـ معدات</div>
           <div class="web" id="p-co-web">level7ksa.com</div>
+          <div id="p-co-vat" style="display:none;font-size:.78rem;color:#444;font-weight:700;margin-top:2px"></div>
         </div>
       </div>
       <div class="inv-meta">
@@ -724,7 +726,7 @@ const fbDB   = firebase.firestore();
       </div>
       <div id="p-qr-wrap" style="display:none;position:absolute;left:12mm;bottom:14mm;text-align:center;z-index:1">
         <img id="p-qr" alt="QR" style="width:24mm;height:24mm;display:block">
-        <div style="font-size:.6rem;color:#888;margin-top:1px">رمز الفاتورة</div>
+        <div style="font-size:.6rem;color:#888;margin-top:1px" id="p-qr-lbl">رمز الفاتورة</div>
       </div>
       <div id="p-terms" style="display:none;margin-top:16px;border-top:1px dashed #bbb;padding-top:8px;font-size:.76rem;color:#666;text-align:center;white-space:pre-line"></div>
       <div id="print-datetime"></div>
@@ -2438,6 +2440,7 @@ function collectForm() {
     clientPhone: document.getElementById('f-client-phone').value,
     returnForId: returnForInvId,
     taxRate:tax, items, subtotal:sub, totalDisc:dis, tax:t, grand:af+t,
+    issuedAt: new Date().toISOString(),
     branchId: (document.getElementById('f-branch')&&document.getElementById('f-branch').value) ? parseInt(document.getElementById('f-branch').value) : null,
     branchName: (()=>{ const v=document.getElementById('f-branch')&&document.getElementById('f-branch').value; const b=v?branches.find(x=>String(x.id)===v):null; return b?b.name:''; })(),
   };
@@ -2543,6 +2546,7 @@ window.addEventListener('afterprint', ()=>{
 });
 
 function printInvoice(inv) {
+  applyCompanyInfo(); // تحديث الترويسة والرقم الضريبي بأحدث الإعدادات
   document.getElementById('p-date').textContent        = fmtDate(inv.date);
   document.getElementById('p-type').textContent        = inv.type + (inv.branchName ? ' — 🏬 '+inv.branchName : '');
   document.getElementById('p-client-num').textContent  = inv.clientNum||'-';
@@ -3282,6 +3286,7 @@ function openSettingsForm() {
   document.getElementById('set-co-sub').value  = settings.coSub;
   document.getElementById('set-co-web').value  = settings.coWeb;
   document.getElementById('set-tax').value     = settings.taxRate;
+  document.getElementById('set-vat-no').value  = settings.vatNo||'';
   document.getElementById('set-next-inv').value= nextInvNum;
   document.getElementById('set-def-pay').value = settings.defPay;
   document.getElementById('set-terms').value   = settings.invTerms||'';
@@ -3294,6 +3299,7 @@ function saveSettings() {
   settings.taxRate = parseFloat(document.getElementById('set-tax').value)||0;
   settings.defPay  = document.getElementById('set-def-pay').value;
   settings.invTerms= document.getElementById('set-terms').value.trim();
+  settings.vatNo   = document.getElementById('set-vat-no').value.trim();
   lsSet('appSettings', JSON.stringify(settings));
   const ni = parseInt(document.getElementById('set-next-inv').value);
   if (ni && ni>0) { nextInvNum = ni; lsSet('nextInvNum', nextInvNum); }
@@ -3307,6 +3313,9 @@ function applyCompanyInfo() {
   document.getElementById('p-co-name').textContent = settings.coName;
   document.getElementById('p-co-sub').textContent  = settings.coSub;
   document.getElementById('p-co-web').textContent  = settings.coWeb;
+  const vat = document.getElementById('p-co-vat');
+  vat.textContent = settings.vatNo ? 'الرقم الضريبي: '+settings.vatNo : '';
+  vat.style.display = settings.vatNo ? 'block' : 'none';
 }
 
 // ═══════════════ QR: للمنتجات وعلى الفاتورة
@@ -3347,13 +3356,39 @@ function printProductQR() {
     w.document.close();
   });
 }
+// ترميز TLV-Base64 المعتمد من هيئة الزكاة والضريبة والجمارك (المرحلة الأولى من الفوترة الإلكترونية)
+function _zatcaTLV(inv) {
+  const enc = new TextEncoder();
+  const ts = inv.issuedAt || (inv.date + 'T00:00:00Z');
+  const fields = [
+    [1, settings.coName || ''],
+    [2, settings.vatNo],
+    [3, ts],
+    [4, Number(inv.grand||0).toFixed(2)],
+    [5, Number(inv.tax||0).toFixed(2)],
+  ];
+  const parts = [];
+  fields.forEach(([tag, val])=>{
+    const b = enc.encode(String(val));
+    parts.push(Uint8Array.of(tag, b.length), b);
+  });
+  let len = 0; parts.forEach(p=>len+=p.length);
+  const buf = new Uint8Array(len); let o = 0;
+  parts.forEach(p=>{ buf.set(p, o); o += p.length; });
+  let bin = ''; buf.forEach(b=>bin+=String.fromCharCode(b));
+  return btoa(bin);
+}
 function _setInvoiceQR(inv) {
   const wrap = document.getElementById('p-qr-wrap');
   wrap.style.display = 'none';
   _loadQRLib().then(()=>{
-    const txt = [settings.coName, 'فاتورة رقم: '+inv.invNum, 'التاريخ: '+inv.date,
-                 'الإجمالي: '+inv.grand, 'الضريبة: '+(inv.tax||0)].join('\n');
-    return QRCode.toDataURL(txt, { width: 220, margin: 1 });
+    // مع رقم ضريبي مسجل: QR ضريبي رسمي يقرؤه تطبيق الهيئة — وبدونه: QR معلوماتي عادي
+    const payload = settings.vatNo
+      ? _zatcaTLV(inv)
+      : [settings.coName, 'فاتورة رقم: '+inv.invNum, 'التاريخ: '+inv.date,
+         'الإجمالي: '+inv.grand, 'الضريبة: '+(inv.tax||0)].join('\n');
+    document.getElementById('p-qr-lbl').textContent = settings.vatNo ? 'الفاتورة الضريبية ZATCA' : 'رمز الفاتورة';
+    return QRCode.toDataURL(payload, { width: 220, margin: 1 });
   }).then(url=>{
     document.getElementById('p-qr').src = url;
     wrap.style.display = 'block';
