@@ -757,7 +757,8 @@ const fbDB   = firebase.firestore();
           </div>
         </div>
       </div>
-      <div class="rc-row"><div class="rc-lbl">استلمت من:</div><div class="rc-val" id="rc-from" style="text-align:center"></div></div>
+      <div style="text-align:center;font-weight:800;color:#1b5e20;font-size:1.05rem;margin-bottom:13px;letter-spacing:1px" id="rc-title">سند قبض</div>
+      <div class="rc-row"><div class="rc-lbl" id="rc-from-lbl">استلمت من:</div><div class="rc-val" id="rc-from" style="text-align:center"></div></div>
       <div class="rc-row" style="margin-bottom:6px"><div class="rc-lbl">المبلغ:</div><div class="rc-val rc-money" id="rc-amount" style="text-align:center"></div></div>
       <div class="rc-bar"></div>
       <div class="rc-row"><div class="rc-lbl">ذلك قيمة :</div><div class="rc-val" id="rc-desc" style="text-align:center"></div></div>
@@ -1114,7 +1115,7 @@ function lsDel(k)      { localStorage.removeItem(lsKey(k)); _dirtyKeys.add(k); s
 // ── مزامنة سحابية: كل بيانات المنشأة تُحفظ في Firestore وتُستعاد من أي جهاز
 const CLOUD_KEYS = ['invoices','deletedInvoices','customers','products','payments',
                     'nextInvNum','nextProdSeq','appSettings','logoImg','bgImg',
-                    'logoWidth','bgWidth','bgOpacity','branches','nextRcptNum'];
+                    'logoWidth','bgWidth','bgOpacity','branches','nextRcptNum','nextDsbNum'];
 let _cloudTimer = null;
 function scheduleCloudSave() {
   if (!currentAccId) return;
@@ -1168,7 +1169,7 @@ function _dailyBackup(uid, data) {
 
 // ═══════════════ STATE (loaded per account)
 let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], branches=[];
-let nextInvNum=1, nextProdSeq=1, nextRcptNum=1;
+let nextInvNum=1, nextProdSeq=1, nextRcptNum=1, nextDsbNum=1;
 let lang = localStorage.getItem('lang') || 'ar';
 const DEF_SETTINGS = {
   coName:'LEVEL7   لتلبية احتياجات المتخصصين والهواه في مجال الخياطة',
@@ -1186,6 +1187,7 @@ function loadAccountData() {
   branches        = JSON.parse(lsGet('branches','[]'));
   nextInvNum      = parseInt(lsGet('nextInvNum','1'));
   nextRcptNum     = parseInt(lsGet('nextRcptNum','1'));
+  nextDsbNum      = parseInt(lsGet('nextDsbNum','1'));
   nextProdSeq     = parseInt(lsGet('nextProdSeq','1'));
   settings        = {...DEF_SETTINGS, ...JSON.parse(lsGet('appSettings','{}'))};
 }
@@ -2477,13 +2479,21 @@ function _storeInvoice(inv) {
   } else {
     inv.clientInvNum = getNextClientInvNum(inv.clientId);
   }
-  // Return invoice: restore stock
+  // فاتورة المرتجع: البضاعة المرتجعة تدخل مستودع «بضاعة مرتجع» — لا تعود لمستودع البيع
   if (inv.type==='فاتورة مرتجع') {
     inv.items.forEach(item=>{
-      if (item.productId) {
-        const p = products.find(x=>x.id===parseInt(item.productId));
-        if (p&&!p.isService&&p.qty!==null) p.qty += item.qty;
+      if (!item.productId) return;
+      const p = products.find(x=>x.id===parseInt(item.productId));
+      if (!p || p.isService) return;
+      let rp = products.find(x => (x.warehouse||'بيع')==='مرتجع' && x.code === p.code+'-R');
+      if (!rp) {
+        rp = { id: Date.now()+Math.floor(Math.random()*1000), code: p.code+'-R', name: p.name,
+               category: p.category||'', unit: p.unit||'حبة', sellPrice: p.sellPrice, buyPrice: p.buyPrice||0,
+               qty: 0, minQty: 0, notes: 'بضاعة مرتجعة من المبيعات', isService: false,
+               warehouse: 'مرتجع', branchIds: inv.branchId ? [inv.branchId] : (p.branchIds||[]) };
+        products.push(rp);
       }
+      rp.qty += item.qty;
     });
     save('products');
   } else if (!editingInvId && (inv.type==='فاتورة مبيعات')) {
@@ -3017,7 +3027,7 @@ function renderStatement(clientId) {
   const cPays = payments.filter(p=>String(p.clientId)===String(clientId));
   const entries = [
     ...cInvs.map(i=>({date:i.date,type:'inv',label:(ar?'فاتورة #':'Invoice #')+(i.clientInvNum||i.invNum)+' ('+i.type+')',debit:i.type==='فاتورة مرتجع'?0:i.grand,credit:i.type==='فاتورة مرتجع'?i.grand:0})),
-    ...cPays.map(p=>({date:p.date,type:'pay',pid:p.id,isRcpt:p.type==='دفعة',label:p.type+(p.notes?' — '+p.notes:''),debit:p.type==='استرداد'?p.amount:0,credit:p.type==='دفعة'?p.amount:0})),
+    ...cPays.map(p=>({date:p.date,type:'pay',pid:p.id,isRcpt:true,vlbl:p.type==='دفعة'?'سند قبض':'سند صرف',label:p.type+(p.notes?' — '+p.notes:''),debit:p.type==='استرداد'?p.amount:0,credit:p.type==='دفعة'?p.amount:0})),
   ].sort((a,b)=>a.date>b.date?1:-1);
   let bal=0;
   const list = document.getElementById('stmt-list');
@@ -3034,7 +3044,7 @@ function renderStatement(clientId) {
         <span class="dr">${e.debit?formatNum(e.debit)+(ar?' ر.س':' SAR'):''}</span>
         <span class="cr">${e.credit?formatNum(e.credit)+(ar?' ر.س':' SAR'):''}</span>
         <span style="font-size:.82rem;color:#555">${ar?'رصيد':'Bal'}: <b class="${bal>=0?'balance-positive':'balance-negative'}">${formatNum(Math.abs(bal))}</b></span>
-        ${e.isRcpt?`<button class="btn btn-info btn-sm" onclick="printReceiptById(${e.pid})" title="${ar?'طباعة سند القبض':'Print receipt'}">🖨 ${ar?'سند':'Receipt'}</button>`:''}
+        ${e.isRcpt?`<button class="btn btn-info btn-sm" onclick="printReceiptById(${e.pid})" title="${ar?'طباعة '+e.vlbl:'Print voucher'}">🖨 ${ar?e.vlbl.replace('سند ',''):'Voucher'}</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -3073,14 +3083,14 @@ function savePayment() {
     notes:document.getElementById('pay-notes').value.trim(),
   };
   if (pay.type === 'دفعة') { pay.rcptNum = nextRcptNum++; lsSet('nextRcptNum', String(nextRcptNum)); }
+  if (pay.type === 'استرداد') { pay.dsbNum = nextDsbNum++; lsSet('nextDsbNum', String(nextDsbNum)); }
   payments.push(pay);
   save('payments');
   closeModal('payment-modal');
   if (stmtClientId) renderStatement(stmtClientId);
-  if (pay.type === 'دفعة' && confirm(ar?'تم حفظ الدفعة ✔\nطباعة سند القبض الرسمي؟':'Saved ✔ Print receipt voucher?')) {
+  const vName = pay.type === 'دفعة' ? (ar?'سند القبض':'receipt') : (ar?'سند الصرف':'disbursement');
+  if (confirm(ar?'تم الحفظ ✔ — خُصم من رصيد العميل\nطباعة '+vName+' الرسمي؟':'Saved ✔ Print '+vName+'?')) {
     printReceiptById(pay.id);
-  } else if (pay.type !== 'دفعة') {
-    alert(ar?'تم حفظ الحركة ✔':'Saved ✔');
   }
 }
 
@@ -3148,15 +3158,21 @@ function printReceiptById(pid) {
 // تحويل الأرقام اللاتينية لأرقام عربية (٠١٢٣...) كما في النموذج الرسمي
 function toArDigits(s) { return String(s).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[d]); }
 function printReceipt(p) {
+  const isDsb = p.type === 'استرداد'; // سند صرف (إعادة مبلغ للعميل)
   // السندات القديمة بلا رقم تأخذ الرقم التالي عند أول طباعة
-  if (!p.rcptNum) { p.rcptNum = nextRcptNum++; lsSet('nextRcptNum', String(nextRcptNum)); save('payments'); }
+  if (isDsb && !p.dsbNum) { p.dsbNum = nextDsbNum++; lsSet('nextDsbNum', String(nextDsbNum)); save('payments'); }
+  if (!isDsb && !p.rcptNum) { p.rcptNum = nextRcptNum++; lsSet('nextRcptNum', String(nextRcptNum)); save('payments'); }
   const c = customers.find(x=>String(x.id)===String(p.clientId));
-  document.getElementById('rc-num').textContent  = toArDigits(String(p.rcptNum).padStart(6,'0'));
+  document.getElementById('rc-title').textContent = isDsb ? 'سند صرف' : 'سند قبض';
+  document.getElementById('rc-from-lbl').textContent = isDsb ? 'يُصرف إلى:' : 'استلمت من:';
+  document.getElementById('rc-num').textContent  = toArDigits(String(isDsb ? p.dsbNum : p.rcptNum).padStart(6,'0'));
   document.getElementById('rc-date').textContent = toArDigits(fmtDate(p.date));
   document.getElementById('rc-from').textContent = c ? c.name : '-';
   document.getElementById('rc-amount').textContent = toArDigits(formatNum(p.amount.toFixed(2)))+' ريال سعودي';
-  document.getElementById('rc-desc').textContent = p.notes || 'دفعة من الحساب';
-  const remain = Math.max(0, clientBalance(p.clientId));
+  document.getElementById('rc-desc').textContent = p.notes || (isDsb ? 'إعادة مبلغ للعميل' : 'دفعة من الحساب');
+  // قبض: المتبقي على العميل — صرف: المتبقي للعميل لدينا
+  const bal = clientBalance(p.clientId);
+  const remain = isDsb ? Math.max(0, -bal) : Math.max(0, bal);
   const due = remain + p.amount;
   document.getElementById('rc-due-words').textContent  = 'فقط مبلغ وقدره: '+tafqeet(due)+' ريالاً سعوديًا لا غير.';
   document.getElementById('rc-paid-words').textContent = 'فقط مبلغ وقدره: '+tafqeet(p.amount)+' ريالاً سعوديًا لا غير.';
