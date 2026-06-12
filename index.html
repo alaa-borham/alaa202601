@@ -540,7 +540,12 @@ const fbDB   = firebase.firestore();
         <button class="btn btn-outline" onclick="showScreen('dashboard')" data-i18n="backHome">← الرئيسية</button>
       </div>
     </div>
-    <div class="sbar"><input type="text" id="prod-search" data-i18n-ph="searchProd" placeholder="🔍 بحث..." oninput="renderProducts()"><select id="prod-branch-filter" onchange="renderProducts()" style="display:none;padding:8px 11px;border:1.5px solid #ddd;border-radius:7px;font-family:inherit;background:white"></select></div>
+    <div class="sbar"><input type="text" id="prod-search" data-i18n-ph="searchProd" placeholder="🔍 بحث..." oninput="renderProducts()"><select id="prod-branch-filter" onchange="renderProducts()" style="display:none;padding:8px 11px;border:1.5px solid #ddd;border-radius:7px;font-family:inherit;background:white"></select><select id="prod-wh-filter" onchange="renderProducts()" style="padding:8px 11px;border:1.5px solid #ddd;border-radius:7px;font-family:inherit;background:white">
+          <option value="">📦 كل المستودعات</option>
+          <option value="بيع">🛒 بيع</option>
+          <option value="عرض">🪟 بضاعة عرض</option>
+          <option value="مرتجع">↩️ بضاعة مرتجع</option>
+        </select></div>
     <div class="ctabs" id="cat-tabs"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:13px">
       <div style="background:white;padding:9px 15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);flex:1;min-width:110px;text-align:center">
@@ -597,6 +602,9 @@ const fbDB   = firebase.firestore();
               <option value="مدى">💳 مدى</option>
               <option value="تحويل">🏦 تحويل</option>
             </select>
+          </div>
+          <div class="fg" id="f-branch-grp" style="display:none"><label>🏬 فرع الإصدار</label>
+            <select id="f-branch"></select>
           </div>
           <div class="fg">
             <label data-i18n="lblClientNum">رقم العميل <span class="req">*</span></label>
@@ -816,8 +824,15 @@ const fbDB   = firebase.firestore();
         </select>
         <div id="svc-note" style="background:#e3f2fd;border-radius:5px;padding:6px 10px;font-size:.78rem;color:#1565c0;margin-top:5px;display:none">هذه الفئة خدمة — لا مخزون ولا سعر شراء.</div>
       </div>
+      <div class="fg"><label>المستودع</label>
+        <select id="p-warehouse">
+          <option value="بيع">🛒 مستودع بيع</option>
+          <option value="عرض">🪟 مستودع بضاعة عرض</option>
+          <option value="مرتجع">↩️ مستودع بضاعة مرتجع</option>
+        </select>
+      </div>
       <div class="fg" id="p-branches-grp" style="display:none">
-        <label>الفرع / المستودع</label>
+        <label>الفرع</label>
         <div id="p-branches-list" style="background:#fafafa;border:1.5px solid #ddd;border-radius:7px;padding:8px 10px;display:grid;gap:4px"></div>
       </div>
       <div class="fg"><label data-i18n="lblUnit">الوحدة</label>
@@ -924,7 +939,8 @@ const fbDB   = firebase.firestore();
       <table style="width:100%;border-collapse:collapse">
         <thead><tr>
           <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الفرع</th>
-          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الموظفون فيه</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الموظفون</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">المستودعات الثلاثة (عدد الأصناف)</th>
           <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">إجراءات</th>
         </tr></thead>
         <tbody id="branches-tbody"></tbody>
@@ -1852,6 +1868,21 @@ function renderAnalytics() {
   });
   const topProducts = Object.fromEntries(Object.entries(prodSales).sort((a,b)=>b[1]-a[1]).slice(0,10));
 
+  // ── مبيعات وأرباح الفروع
+  const brSales = {}, brProfit = {};
+  const brName = id => { if (!id) return ar?'المركز الرئيسي':'HQ'; const b=branches.find(x=>String(x.id)===String(id)); return b?b.name:(ar?'فرع محذوف':'Deleted'); };
+  invoices.forEach(inv => {
+    if (inv.type==='فاتورة مرتجع') return;
+    const k = brName(inv.branchId);
+    brSales[k] = (brSales[k]||0) + inv.grand;
+    let profit = 0;
+    inv.items.forEach(it=>{
+      const p = it.productId ? products.find(x=>String(x.id)===String(it.productId)) : null;
+      profit += it.total - ((p && !p.isService ? (p.buyPrice||0) : 0) * it.qty);
+    });
+    brProfit[k] = (brProfit[k]||0) + profit;
+  });
+
   // ── أرصدة العملاء الآجلة (فواتير آجل ناقص الدفعات)
   const debts = {};
   invoices.forEach(i => {
@@ -1883,6 +1914,8 @@ function renderAnalytics() {
   document.getElementById('an-charts').innerHTML =
     mkChart(ar?'📅 المبيعات الشهرية (آخر 12 شهراً)':'📅 Monthly sales (last 12 months)', monthly, '', null, true) +
     mkChart(ar?'🏆 أفضل الأصناف مبيعاً':'🏆 Top selling products', topProducts, 'blue') +
+    mkChart(ar?'🏬 مبيعات الفروع':'🏬 Sales by branch', brSales, '') +
+    mkChart(ar?'💵 أرباح الفروع (تقديرية)':'💵 Branch profits (est.)', brProfit, 'purple') +
     mkChart(ar?'💳 أرصدة العملاء الآجلة (مديونيات)':'💳 Outstanding client balances', debtByName, 'orange') +
     mkChart(ar?'💰 المبيعات حسب الفئة':'💰 Sales by category', catSales, '') +
     mkChart(ar?'📦 الكميات المباعة حسب الفئة':'📦 Quantities sold by category', catQty, 'blue', v=>formatNum(v)) +
@@ -1959,6 +1992,7 @@ function openProductPanel(id) {
     document.getElementById('p-buy-price').value  = p.buyPrice||'';
     document.getElementById('p-qty').value        = p.qty ?? 0;
     document.getElementById('p-min-qty').value    = p.minQty ?? 5;
+    document.getElementById('p-warehouse').value  = p.warehouse || 'بيع';
     document.getElementById('p-notes').value      = p.notes||'';
   } else {
     document.getElementById('panel-title').textContent = lang==='ar'?'إضافة صنف جديد':'Add New Product';
@@ -1971,6 +2005,7 @@ function openProductPanel(id) {
     document.getElementById('p-unit').value='حبة';
     document.getElementById('p-qty').value='0';
     document.getElementById('p-min-qty').value='5';
+    document.getElementById('p-warehouse').value='بيع';
   }
   _fillProductBranches(id ? (products.find(x=>x.id===id)||{}).branchIds : null);
   onCategoryChange();
@@ -2022,6 +2057,7 @@ function saveProduct() {
     minQty:isSvc?null:(parseInt(document.getElementById('p-min-qty').value)||5),
     notes:document.getElementById('p-notes').value.trim(),
     isService:isSvc,
+    warehouse: document.getElementById('p-warehouse').value || 'بيع',
     branchIds: document.getElementById('pb-all') && !document.getElementById('pb-all').checked
       ? [...document.querySelectorAll('.pb-branch:checked')].map(c=>parseInt(c.value))
       : [],
@@ -2070,6 +2106,8 @@ function renderProducts() {
       }
     }
   }
+  const whF = document.getElementById('prod-wh-filter')?.value || '';
+  if (whF) pool = pool.filter(p => (p.warehouse||'بيع') === whF);
   const low = pool.filter(p=>!p.isService && p.qty>0 && p.qty<=p.minQty).length;
   const out = pool.filter(p=>!p.isService && p.qty===0).length;
   const val = pool.filter(p=>!p.isService).reduce((s,p)=>s+(p.qty||0)*(p.buyPrice||0),0);
@@ -2096,7 +2134,7 @@ function renderProducts() {
       : '';
     return `<div class="prod-card">
       <div class="prod-card-header">
-        <div class="pn">${escHtml(p.name)}${brNames?`<div style="font-size:.68rem;color:#00838f;font-weight:600;margin-top:2px">🏬 ${brNames}</div>`:''}</div>
+        <div class="pn">${escHtml(p.name)}<div style="font-size:.68rem;color:#6a1b9a;font-weight:600;margin-top:2px">${(p.warehouse||'بيع')==='بيع'?'🛒 بيع':(p.warehouse==='عرض'?'🪟 عرض':'↩️ مرتجع')}${brNames?` <span style="color:#00838f">· 🏬 ${brNames}</span>`:''}</div></div>
         <div class="pc">${escHtml(p.code)}${p.category?' · '+escHtml(p.category):''}</div>
       </div>
       <div class="prod-card-body">
@@ -2138,7 +2176,7 @@ function renderPicker() {
   const q = document.getElementById('picker-search').value.toLowerCase();
   const list = document.getElementById('picker-list');
   const ar = lang==='ar';
-  const f = visibleProducts().filter(p=>!q||p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q));
+  const f = visibleProducts().filter(p=>(p.warehouse||'بيع')==='بيع').filter(p=>!q||p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q));
   if (!f.length) { list.innerHTML=`<div style="text-align:center;padding:35px;color:#bbb">${ar?'لا توجد أصناف':'No products'}</div>`; return; }
   list.innerHTML = f.map(p=>{
     let sc,sl;
@@ -2164,6 +2202,18 @@ function addProductToInvoice(prodId) {
 }
 
 // ═══════════════ INVOICE FORM
+// حقل فرع الإصدار في الفاتورة: يظهر عند وجود فروع — وموظف الفرع مقفول على فرعه
+function _fillInvoiceBranch(selectedId) {
+  const grp = document.getElementById('f-branch-grp');
+  const sel = document.getElementById('f-branch');
+  if (!branches.length) { grp.style.display='none'; sel.innerHTML=''; return; }
+  grp.style.display = '';
+  sel.innerHTML = '<option value="">المركز الرئيسي</option>' +
+    branches.map(b=>`<option value="${b.id}">${escHtml(b.name)}</option>`).join('');
+  sel.value = selectedId != null ? String(selectedId) : '';
+  if (sel.value !== String(selectedId||'')) sel.value = '';
+  sel.disabled = !!(currentMember && currentMember.branchId);
+}
 function newInvoice(returnFor) {
   editingInvId=null; returnForInvId=returnFor||null;
   const ar = lang==='ar';
@@ -2175,6 +2225,7 @@ function newInvoice(returnFor) {
   document.getElementById('f-date-manual').value='';
   document.getElementById('f-type').value = returnFor?'فاتورة مرتجع':'فاتورة مبيعات';
   document.getElementById('f-payment').value=settings.defPay||'كاش';
+  _fillInvoiceBranch(currentMember && currentMember.branchId ? currentMember.branchId : '');
   ['f-client-num','f-client-name','f-client-phone','f-client-inv-num'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
   document.getElementById('client-hint').textContent='';
   document.getElementById('f-tax-rate').value=String(settings.taxRate||0);
@@ -2373,6 +2424,8 @@ function collectForm() {
     clientPhone: document.getElementById('f-client-phone').value,
     returnForId: returnForInvId,
     taxRate:tax, items, subtotal:sub, totalDisc:dis, tax:t, grand:af+t,
+    branchId: (document.getElementById('f-branch')&&document.getElementById('f-branch').value) ? parseInt(document.getElementById('f-branch').value) : null,
+    branchName: (()=>{ const v=document.getElementById('f-branch')&&document.getElementById('f-branch').value; const b=v?branches.find(x=>String(x.id)===v):null; return b?b.name:''; })(),
   };
 }
 
@@ -2469,7 +2522,7 @@ window.addEventListener('afterprint', ()=>{
 
 function printInvoice(inv) {
   document.getElementById('p-date').textContent        = fmtDate(inv.date);
-  document.getElementById('p-type').textContent        = inv.type;
+  document.getElementById('p-type').textContent        = inv.type + (inv.branchName ? ' — 🏬 '+inv.branchName : '');
   document.getElementById('p-client-num').textContent  = inv.clientNum||'-';
   document.getElementById('p-client-name').textContent = inv.clientName;
   document.getElementById('p-client-phone').textContent= inv.clientPhone||'';
@@ -2715,9 +2768,17 @@ function renderBranches() {
   document.getElementById('branches-empty').style.display = branches.length ? 'none' : 'block';
   document.getElementById('branches-tbody').innerHTML = branches.map(b=>{
     const cnt = _membersCache.filter(m=>String(m.branchId)===String(b.id)).length;
+    // أصناف الفرع (المخصصة له أو لجميع الفروع) موزعة على مستودعاته الثلاثة
+    const bp = products.filter(p => !(p.branchIds||[]).length || (p.branchIds||[]).map(String).includes(String(b.id)));
+    const wh = w => bp.filter(p => (p.warehouse||'بيع') === w).length;
     return `<tr>
       <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:600">${escHtml(b.name)}</td>
       <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${cnt}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap;font-size:.78rem">
+        <span class="pbadge" style="background:#e8f5e9;color:#2e7d32">🛒 بيع: ${wh('بيع')}</span>
+        <span class="pbadge" style="background:#e3f2fd;color:#1565c0">🪟 عرض: ${wh('عرض')}</span>
+        <span class="pbadge" style="background:#fff3e0;color:#e65100">↩️ مرتجع: ${wh('مرتجع')}</span>
+      </td>
       <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">
         <button class="btn btn-danger btn-sm" onclick="deleteBranch(${b.id})">حذف</button>
       </td>
