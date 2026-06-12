@@ -741,20 +741,20 @@ const fbDB   = firebase.firestore();
     </div>
     <div class="rcpt-print">
       <div class="rcpt-top">
-        <div class="rcpt-meta">
-          <div>سند رقم: <span class="rc-box" id="rc-num"></span></div>
-          <div>التاريخ / <span class="rc-box" id="rc-date"></span></div>
-        </div>
         <div class="rcpt-co-box">
+          <div>
+            <img id="rcpt-hdr-img" alt="" style="display:none;max-height:56px;object-fit:contain">
+            <svg id="rcpt-hdr-svg" width="118" height="40" viewBox="0 0 340 116"><use href="#level7logo"/></svg>
+          </div>
           <div style="text-align:center;flex:1">
             <div class="name" id="rc-co-name"></div>
             <div class="sub" id="rc-co-sub"></div>
             <div class="web" id="rc-co-web"></div>
           </div>
-          <div>
-            <img id="rcpt-hdr-img" alt="" style="display:none;max-height:56px;object-fit:contain">
-            <svg id="rcpt-hdr-svg" width="118" height="40" viewBox="0 0 340 116"><use href="#level7logo"/></svg>
-          </div>
+        </div>
+        <div class="rcpt-meta">
+          <div>سند رقم: <span class="rc-box" id="rc-num"></span></div>
+          <div>التاريخ / <span class="rc-box" id="rc-date"></span></div>
         </div>
       </div>
       <div style="text-align:center;font-weight:800;color:#1b5e20;font-size:1.05rem;margin-bottom:13px;letter-spacing:1px" id="rc-title">سند قبض</div>
