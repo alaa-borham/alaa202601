@@ -391,7 +391,10 @@ const fbDB   = firebase.firestore();
       <h1 data-i18n="heroTitle">مرحباً بك في نظام LEVEL7 👋</h1>
       <p data-i18n="appSubtitle">نظام إدارة الفواتير والمستودع</p>
     </div>
-    <button class="hero-cta" onclick="newInvoice()" data-i18n="heroCta" data-perm="invoices">➕ فاتورة جديدة</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="hero-cta" onclick="newInvoice()" data-i18n="heroCta" data-perm="invoices">➕ فاتورة جديدة</button>
+      <button class="hero-cta" style="background:linear-gradient(135deg,#26a69a,#1565c0);box-shadow:0 8px 24px rgba(38,166,154,.35)" onclick="openReceiptPicker()" data-perm="customers">🧾 سند قبض</button>
+    </div>
   </div>
   <div class="dash-stats" id="dash-stats" style="margin:0 auto 22px"></div>
   <div class="dash-cards">
@@ -537,7 +540,7 @@ const fbDB   = firebase.firestore();
         <button class="btn btn-outline" onclick="showScreen('dashboard')" data-i18n="backHome">← الرئيسية</button>
       </div>
     </div>
-    <div class="sbar"><input type="text" id="prod-search" data-i18n-ph="searchProd" placeholder="🔍 بحث..." oninput="renderProducts()"></div>
+    <div class="sbar"><input type="text" id="prod-search" data-i18n-ph="searchProd" placeholder="🔍 بحث..." oninput="renderProducts()"><select id="prod-branch-filter" onchange="renderProducts()" style="display:none;padding:8px 11px;border:1.5px solid #ddd;border-radius:7px;font-family:inherit;background:white"></select></div>
     <div class="ctabs" id="cat-tabs"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:13px">
       <div style="background:white;padding:9px 15px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);flex:1;min-width:110px;text-align:center">
@@ -813,6 +816,10 @@ const fbDB   = firebase.firestore();
         </select>
         <div id="svc-note" style="background:#e3f2fd;border-radius:5px;padding:6px 10px;font-size:.78rem;color:#1565c0;margin-top:5px;display:none">هذه الفئة خدمة — لا مخزون ولا سعر شراء.</div>
       </div>
+      <div class="fg" id="p-branches-grp" style="display:none">
+        <label>الفرع / المستودع</label>
+        <div id="p-branches-list" style="background:#fafafa;border:1.5px solid #ddd;border-radius:7px;padding:8px 10px;display:grid;gap:4px"></div>
+      </div>
       <div class="fg"><label data-i18n="lblUnit">الوحدة</label>
         <select id="p-unit">
           <option value="حبة">حبة</option><option value="كرتون">كرتون</option><option value="علبة">علبة</option>
@@ -870,6 +877,19 @@ const fbDB   = firebase.firestore();
         <tbody id="customers-tbody"></tbody>
       </table>
       <div id="cust-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا يوجد عملاء بعد — اضغط "إضافة عميل جديد"</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: RECEIPT CLIENT PICKER -->
+<div class="moverlay" id="rcpt-pick-modal">
+  <div class="mbox" style="max-width:380px">
+    <div class="mhdr"><h3>🧾 سند قبض جديد</h3><button class="mcls" onclick="closeModal('rcpt-pick-modal')">✕</button></div>
+    <div style="padding:18px">
+      <div class="fg"><label>اختر العميل</label>
+        <select id="rcpt-client" style="width:100%;padding:8px 10px;border:1.5px solid #ddd;border-radius:7px;font-family:inherit"></select>
+      </div>
+      <button class="btn btn-success" style="width:100%;padding:10px" onclick="startReceiptForClient()">متابعة ←</button>
     </div>
   </div>
 </div>
@@ -1952,10 +1972,34 @@ function openProductPanel(id) {
     document.getElementById('p-qty').value='0';
     document.getElementById('p-min-qty').value='5';
   }
+  _fillProductBranches(id ? (products.find(x=>x.id===id)||{}).branchIds : null);
   onCategoryChange();
   document.getElementById('product-panel').classList.add('open');
 }
 function closeProductPanel() { document.getElementById('product-panel').classList.remove('open'); }
+// خانة الفروع داخل نموذج الصنف: الجميع، أو فرع/فروع محددة
+function _fillProductBranches(selected) {
+  const grp = document.getElementById('p-branches-grp');
+  if (!branches.length) { grp.style.display='none'; return; }
+  grp.style.display = '';
+  const sel = (selected||[]).map(String);
+  const allChecked = !sel.length;
+  document.getElementById('p-branches-list').innerHTML =
+    `<label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-weight:700">
+       <input type="checkbox" id="pb-all" ${allChecked?'checked':''} onchange="_pbAllToggle(this)"> 🏬 جميع الفروع
+     </label>` +
+    branches.map(b=>`<label style="display:flex;gap:7px;align-items:center;cursor:pointer">
+       <input type="checkbox" class="pb-branch" value="${b.id}" ${sel.includes(String(b.id))?'checked':''} onchange="_pbBranchToggle()"> ${escHtml(b.name)}
+     </label>`).join('');
+}
+function _pbAllToggle(cb) {
+  if (cb.checked) document.querySelectorAll('.pb-branch').forEach(c=>c.checked=false);
+  else if (![...document.querySelectorAll('.pb-branch')].some(c=>c.checked)) cb.checked = true;
+}
+function _pbBranchToggle() {
+  const any = [...document.querySelectorAll('.pb-branch')].some(c=>c.checked);
+  document.getElementById('pb-all').checked = !any;
+}
 
 function saveProduct() {
   const name = document.getElementById('p-name').value.trim();
@@ -1978,6 +2022,9 @@ function saveProduct() {
     minQty:isSvc?null:(parseInt(document.getElementById('p-min-qty').value)||5),
     notes:document.getElementById('p-notes').value.trim(),
     isService:isSvc,
+    branchIds: document.getElementById('pb-all') && !document.getElementById('pb-all').checked
+      ? [...document.querySelectorAll('.pb-branch:checked')].map(c=>parseInt(c.value))
+      : [],
   };
   if (editingProdId) {
     const i = products.findIndex(p=>p.id===editingProdId);
@@ -2006,15 +2053,32 @@ function renderProducts() {
   const empty  = document.getElementById('empty-prod-state');
   if (!grid) return;
   const ar = lang==='ar';
-  const low = products.filter(p=>!p.isService && p.qty>0 && p.qty<=p.minQty).length;
-  const out = products.filter(p=>!p.isService && p.qty===0).length;
-  const val = products.filter(p=>!p.isService).reduce((s,p)=>s+(p.qty||0)*(p.buyPrice||0),0);
-  document.getElementById('sp1').textContent = products.length;
+  let pool = visibleProducts();
+  // فلتر الفرع (للمالك وموظفي المركز الرئيسي عند وجود فروع)
+  const brFilter = document.getElementById('prod-branch-filter');
+  if (brFilter) {
+    const showFilter = branches.length && !(currentMember && currentMember.branchId);
+    brFilter.style.display = showFilter ? '' : 'none';
+    if (showFilter) {
+      const cur = brFilter.value;
+      brFilter.innerHTML = '<option value="">🏬 كل الفروع</option>' +
+        branches.map(b=>`<option value="${b.id}">${escHtml(b.name)}</option>`).join('');
+      brFilter.value = cur;
+      if (brFilter.value) {
+        const bid = String(brFilter.value);
+        pool = pool.filter(p => !(p.branchIds||[]).length || (p.branchIds||[]).map(String).includes(bid));
+      }
+    }
+  }
+  const low = pool.filter(p=>!p.isService && p.qty>0 && p.qty<=p.minQty).length;
+  const out = pool.filter(p=>!p.isService && p.qty===0).length;
+  const val = pool.filter(p=>!p.isService).reduce((s,p)=>s+(p.qty||0)*(p.buyPrice||0),0);
+  document.getElementById('sp1').textContent = pool.length;
   document.getElementById('sp2').textContent = formatNum(val);
   document.getElementById('sp3').textContent = low;
   document.getElementById('sp4').textContent = out;
   renderCatTabs(active);
-  const f = products.filter(p=>{
+  const f = pool.filter(p=>{
     const ms = !q||p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q);
     const mc = active==='all'||p.category===active;
     return ms&&mc;
@@ -2027,9 +2091,12 @@ function renderProducts() {
     else if (p.qty===0)     { sc='sout';sl=ar?'نفد المخزون':'Out of stock'; }
     else if (p.qty<=p.minQty){sc='slow';sl=ar?'منخفض':'Low'; }
     else                    { sc='sok'; sl=ar?'متوفر':'In stock'; }
+    const brNames = (p.branchIds||[]).length
+      ? (p.branchIds||[]).map(id=>{ const b=branches.find(x=>String(x.id)===String(id)); return b?escHtml(b.name):''; }).filter(Boolean).join('، ')
+      : '';
     return `<div class="prod-card">
       <div class="prod-card-header">
-        <div class="pn">${escHtml(p.name)}</div>
+        <div class="pn">${escHtml(p.name)}${brNames?`<div style="font-size:.68rem;color:#00838f;font-weight:600;margin-top:2px">🏬 ${brNames}</div>`:''}</div>
         <div class="pc">${escHtml(p.code)}${p.category?' · '+escHtml(p.category):''}</div>
       </div>
       <div class="prod-card-body">
@@ -2061,11 +2128,17 @@ function setCat(c) { document.querySelectorAll('.ctab').forEach(t=>t.classList.t
 // ═══════════════ PICKER
 function openProductPicker() { document.getElementById('picker-search').value=''; renderPicker(); document.getElementById('picker-modal').classList.add('open'); }
 function closeProductPicker() { document.getElementById('picker-modal').classList.remove('open'); }
+// الأصناف المرئية للمستخدم الحالي: موظف الفرع يرى أصناف فرعه وأصناف "كل الفروع" فقط
+function visibleProducts() {
+  if (!currentMember || !currentMember.branchId) return products;
+  const bid = String(currentMember.branchId);
+  return products.filter(p => !(p.branchIds||[]).length || (p.branchIds||[]).map(String).includes(bid));
+}
 function renderPicker() {
   const q = document.getElementById('picker-search').value.toLowerCase();
   const list = document.getElementById('picker-list');
   const ar = lang==='ar';
-  const f = products.filter(p=>!q||p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q));
+  const f = visibleProducts().filter(p=>!q||p.name.toLowerCase().includes(q)||p.code.toLowerCase().includes(q));
   if (!f.length) { list.innerHTML=`<div style="text-align:center;padding:35px;color:#bbb">${ar?'لا توجد أصناف':'No products'}</div>`; return; }
   list.innerHTML = f.map(p=>{
     let sc,sl;
@@ -2618,6 +2691,10 @@ function fillBranchSelect() {
 function addBranch() {
   const name = document.getElementById('br-name').value.trim();
   const errEl = document.getElementById('br-err');
+  const lim = currentAccProfile && currentAccProfile.maxBranches;
+  if (lim != null && branches.length >= lim) {
+    errEl.textContent = '⛔ وصلت للحد المسموح من الفروع ('+lim+') — تواصل مع الإدارة للزيادة'; return;
+  }
   if (!name) { errEl.textContent = 'اكتب اسم الفرع'; return; }
   if (branches.find(b=>b.name===name)) { errEl.textContent = 'الفرع موجود مسبقاً'; return; }
   branches.push({ id: Date.now(), name });
@@ -2690,6 +2767,10 @@ function setMemberPerm(uid, key, val) {
     .catch(e=>{ alert('فشل حفظ الصلاحية: '+(e.message||'')); renderMembers(); });
 }
 function addMember() {
+  const limM = currentAccProfile && currentAccProfile.maxMembers;
+  if (limM != null && _membersCache.length >= limM) {
+    document.getElementById('m-err').textContent = '⛔ وصلت للحد المسموح من المستخدمين ('+limM+') — تواصل مع الإدارة للزيادة'; return;
+  }
   const name  = document.getElementById('m-name').value.trim();
   const uname = document.getElementById('m-username').value.trim().toLowerCase();
   const email = document.getElementById('m-email').value.trim().toLowerCase();
@@ -2927,6 +3008,22 @@ function savePayment() {
   } else if (pay.type !== 'دفعة') {
     alert(ar?'تم حفظ الحركة ✔':'Saved ✔');
   }
+}
+
+// زر سند قبض من اللوحة الرئيسية: اختيار العميل ثم نافذة الدفعة
+function openReceiptPicker() {
+  if (!canAccess('customers')) { permDenied('customers'); return; }
+  if (!customers.length) { alert(lang==='ar'?'أضف عميلاً أولاً من شاشة العملاء':'Add a customer first'); return; }
+  document.getElementById('rcpt-client').innerHTML =
+    customers.map(c=>`<option value="${c.id}">${escHtml(c.name)}${c.num?' (#'+c.num+')':''}</option>`).join('');
+  document.getElementById('rcpt-pick-modal').classList.add('open');
+}
+function startReceiptForClient() {
+  const id = document.getElementById('rcpt-client').value;
+  const c = customers.find(x=>String(x.id)===String(id));
+  if (!c) return;
+  closeModal('rcpt-pick-modal');
+  openAddPaymentForClient(c.id, c.name);
 }
 
 // ═══════════════ سند القبض الرسمي

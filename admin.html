@@ -224,8 +224,8 @@ function renderAdminPanel(){
       <td><strong>${escHtml(a.biz)}</strong></td>
       <td>${escHtml(a.user)}</td>
       <td style="direction:ltr">${escHtml(a.email||'-')}</td>
-      <td>${_cntData(a,'branches')}</td>
-      <td>${1 + (membersByTenant[a.id]||0)}</td>
+      <td style="white-space:nowrap">${_cntData(a,'branches')} / <input type="number" min="0" value="${a.maxBranches??''}" placeholder="∞" onchange="adminSetLimit('${a.id}','maxBranches',this.value)" style="width:52px;padding:3px;border:1px solid #ddd;border-radius:5px;font-family:inherit;text-align:center" title="الحد المسموح من الفروع"></td>
+      <td style="white-space:nowrap">${membersByTenant[a.id]||0} / <input type="number" min="0" value="${a.maxMembers??''}" placeholder="∞" onchange="adminSetLimit('${a.id}','maxMembers',this.value)" style="width:52px;padding:3px;border:1px solid #ddd;border-radius:5px;font-family:inherit;text-align:center" title="الحد المسموح من المستخدمين (الموظفين)"></td>
       <td>${_cntData(a,'products')}</td>
       <td>${_sizeBadge(a)}</td>
       <td>${created}</td>
@@ -248,6 +248,11 @@ function _adminUpdate(id, fields){
     .catch(e=>alert('فشل الحفظ: '+(e.message||'')));
 }
 function adminSetSubEnd(id, val){ _adminUpdate(id, { subEnd: val||null }); }
+// حدود المنشأة: عدد الفروع / المستخدمين المسموح (فارغ = بلا حد)
+function adminSetLimit(id, key, val){
+  const n = val === '' ? null : Math.max(0, parseInt(val)||0);
+  _adminUpdate(id, { [key]: n });
+}
 function adminExtend(id, days){
   const a=accounts.find(x=>x.id===id); if(!a) return;
   const base = (a.subEnd && new Date(a.subEnd) > new Date()) ? new Date(a.subEnd) : new Date();
