@@ -118,7 +118,8 @@ body.ltr .lang-btn{left:auto;right:18px}
 /* نموذج العميل يُفتح فوق نافذة قائمة العملاء (z-index أعلى من .moverlay) */
 #customer-panel{z-index:350}
 /* نافذتا الفروع وQR تُفتحان فوق نوافذ أخرى */
-#branches-modal,#qr-modal{z-index:360}
+#branches-modal,#qr-modal,#sup-stmt-modal{z-index:355}
+#supplier-panel{z-index:365}
 .side-panel.open{display:flex}
 .spb{background:white;width:100%;max-width:420px;height:100%;overflow-y:auto;box-shadow:-4px 0 22px rgba(0,0,0,.2);animation:slideIn .25s ease}
 @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
@@ -410,6 +411,7 @@ const fbDB   = firebase.firestore();
     <div class="dash-card" onclick="newInvoice()" data-perm="invoices"><div class="icon">➕</div><h3 data-i18n="newInvoice">فاتورة جديدة</h3><p data-i18n="newInvoiceSub">إنشاء فاتورة</p></div>
     <div class="dash-card" onclick="showScreen('products-screen')" data-perm="products"><div class="icon">📦</div><h3 data-i18n="warehouse">المستودع</h3><p data-i18n="warehouseSub">الأصناف والمخزون</p></div>
     <div class="dash-card" onclick="showCustomers()" data-perm="customers"><div class="icon">👥</div><h3 data-i18n="customers">العملاء</h3><p data-i18n="customersSub">بيانات العملاء</p></div>
+    <div class="dash-card" onclick="showSuppliers()" data-perm="purchases"><div class="icon">🚚</div><h3>المشتريات</h3><p>الموردون وفواتير الشراء</p></div>
     <div class="dash-card" id="card-members" onclick="showMembers()"><div class="icon">🧑‍💼</div><h3>المستخدمون</h3><p>الموظفون وصلاحياتهم</p></div>
     <div class="dash-card" id="card-branches" onclick="showBranches()"><div class="icon">🏬</div><h3>الفروع</h3><p>فروع المنشأة وبياناتها</p></div>
     <div class="dash-card" onclick="showScreen('analytics-screen')" data-perm="analytics"><div class="icon">📊</div><h3 data-i18n="analytics">التحليلات</h3><p data-i18n="analyticsSub">إحصائيات وتقارير</p></div>
@@ -913,6 +915,87 @@ const fbDB   = firebase.firestore();
   </div>
 </div>
 
+<!-- ═══════════════ MODAL: SUPPLIERS (الموردون) -->
+<div class="moverlay" id="suppliers-modal">
+  <div class="mbox" style="max-width:700px">
+    <div class="mhdr"><h3>🚚 الموردون والمشتريات</h3><button class="mcls" onclick="closeModal('suppliers-modal')">✕</button></div>
+    <div style="padding:11px 13px;border-bottom:1px solid #eee;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-success" onclick="openSupplierPanel()">＋ إضافة مورد</button>
+      <input type="text" id="sup-search" placeholder="🔍 بحث بالاسم أو الهاتف..." oninput="renderSuppliers()"
+        style="flex:1;min-width:160px;padding:7px 10px;border:1.5px solid #ddd;border-radius:6px;font-family:inherit">
+    </div>
+    <div class="mlist">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">الرقم</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">المورد</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">المستحق له</th>
+          <th style="background:#5d9e3f;color:white;padding:8px;text-align:center">إجراءات</th>
+        </tr></thead>
+        <tbody id="suppliers-tbody"></tbody>
+      </table>
+      <div id="sup-empty" style="display:none;text-align:center;padding:36px;color:#bbb">لا يوجد موردون بعد — اضغط "إضافة مورد"</div>
+    </div>
+  </div>
+</div>
+
+<!-- نموذج المورد (إضافة/تعديل) -->
+<div class="side-panel" id="supplier-panel">
+  <div class="spb">
+    <div class="sph"><h3 id="sup-panel-title">إضافة مورد جديد</h3><button class="spc" onclick="closeModal2('supplier-panel')">✕</button></div>
+    <div class="spbody">
+      <input type="hidden" id="s2-edit-id">
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:10px">
+        <div class="fg"><label>رقم المورد</label><input type="number" id="s2-num" placeholder="تلقائي"></div>
+        <div class="fg"><label>اسم المورد <span class="req">*</span></label><input type="text" id="s2-name"></div>
+      </div>
+      <div class="fg"><label>رقم الهاتف</label><input type="text" id="s2-phone" style="direction:ltr"></div>
+      <div class="fg"><label>الرقم الضريبي (إن وجد)</label><input type="text" id="s2-tax" style="direction:ltr"></div>
+      <div class="fg"><label>ملاحظات</label><textarea id="s2-notes" rows="2"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-success" style="flex:1" onclick="saveSupplierFull()">✔ حفظ المورد</button>
+        <button class="btn" style="background:#9e9e9e;color:white" onclick="closeModal2('supplier-panel')">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- كشف حساب المورد -->
+<div class="moverlay" id="sup-stmt-modal">
+  <div class="mbox" style="max-width:750px">
+    <div class="mhdr"><h3 id="sup-stmt-title">كشف حساب المورد</h3><button class="mcls" onclick="closeModal('sup-stmt-modal')">✕</button></div>
+    <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:.85rem;color:#555">المستحق للمورد:</span>
+      <span id="sup-stmt-balance" style="font-size:1.1rem;font-weight:bold"></span>
+      <button class="btn btn-warning btn-sm" onclick="openSupPayment()" style="margin-inline-start:auto">💸 دفعة للمورد (سند صرف)</button>
+    </div>
+    <div class="mlist" id="sup-stmt-list"></div>
+  </div>
+</div>
+
+<!-- دفعة للمورد -->
+<div class="moverlay" id="sup-pay-modal" style="z-index:360">
+  <div class="mbox" style="max-width:420px">
+    <div class="mhdr"><h3 id="sup-pay-title">دفعة للمورد</h3><button class="mcls" onclick="closeModal('sup-pay-modal')">✕</button></div>
+    <div style="padding:18px">
+      <input type="hidden" id="sup-pay-id">
+      <div class="fg"><label>التاريخ</label><input type="date" id="sup-pay-date"></div>
+      <div class="fg"><label>المبلغ <span class="req">*</span></label><input type="number" id="sup-pay-amount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="fg"><label>طريقة الدفع</label>
+        <select id="sup-pay-method">
+          <option value="نقدًا">💵 نقدًا</option>
+          <option value="تحويل بنكي">🏦 تحويل بنكي</option>
+        </select>
+      </div>
+      <div class="fg"><label>ملاحظات</label><textarea id="sup-pay-notes" style="min-height:50px"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-success" style="flex:1" onclick="saveSupPayment()">✔ حفظ</button>
+        <button class="btn" style="background:#9e9e9e;color:white" onclick="closeModal('sup-pay-modal')">إلغاء</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ MODAL: RECEIPT CLIENT PICKER -->
 <div class="moverlay" id="rcpt-pick-modal">
   <div class="mbox" style="max-width:380px">
@@ -1118,7 +1201,7 @@ function lsDel(k)      { localStorage.removeItem(lsKey(k)); _dirtyKeys.add(k); s
 // ── مزامنة سحابية: كل بيانات المنشأة تُحفظ في Firestore وتُستعاد من أي جهاز
 const CLOUD_KEYS = ['invoices','deletedInvoices','customers','products','payments',
                     'nextInvNum','nextProdSeq','appSettings','logoImg','bgImg',
-                    'logoWidth','bgWidth','bgOpacity','branches','nextRcptNum','nextDsbNum'];
+                    'logoWidth','bgWidth','bgOpacity','branches','nextRcptNum','nextDsbNum','suppliers','supPayments'];
 let _cloudTimer = null;
 function scheduleCloudSave() {
   if (!currentAccId) return;
@@ -1171,7 +1254,7 @@ function _dailyBackup(uid, data) {
 }
 
 // ═══════════════ STATE (loaded per account)
-let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], branches=[];
+let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], branches=[], suppliers=[], supPayments=[];
 let nextInvNum=1, nextProdSeq=1, nextRcptNum=1, nextDsbNum=1;
 let lang = localStorage.getItem('lang') || 'ar';
 const DEF_SETTINGS = {
@@ -1186,6 +1269,8 @@ function loadAccountData() {
   products        = JSON.parse(lsGet('products','[]'));
   payments        = JSON.parse(lsGet('payments','[]'));
   branches        = JSON.parse(lsGet('branches','[]'));
+  suppliers       = JSON.parse(lsGet('suppliers','[]'));
+  supPayments     = JSON.parse(lsGet('supPayments','[]'));
   nextInvNum      = parseInt(lsGet('nextInvNum','1'));
   nextRcptNum     = parseInt(lsGet('nextRcptNum','1'));
   nextDsbNum      = parseInt(lsGet('nextDsbNum','1'));
@@ -1803,8 +1888,9 @@ function showScreen(id) {
 }
 
 // ═══════════════ DASHBOARD
+function isSaleInv(i){ return i.type!=='فاتورة مرتجع' && i.type!=='فاتورة مشتريات'; }
 function renderDashStats() {
-  const total = invoices.reduce((s,i)=>s+i.grand,0);
+  const total = invoices.filter(isSaleInv).reduce((s,i)=>s+i.grand,0);
   const lbls = lang==='ar'
     ? ['إجمالي الفواتير','إجمالي المبيعات','أصناف المستودع','عدد العملاء']
     : ['Total invoices','Total sales','Warehouse products','Customers'];
@@ -1820,22 +1906,24 @@ function renderDashStats() {
 function renderAnalytics() {
   const ar = lang==='ar';
   // top stats
-  const totalSales = invoices.filter(i=>i.type!=='فاتورة مرتجع').reduce((s,i)=>s+i.grand,0);
+  const totalSales = invoices.filter(isSaleInv).reduce((s,i)=>s+i.grand,0);
   const totalRet   = invoices.filter(i=>i.type==='فاتورة مرتجع').reduce((s,i)=>s+i.grand,0);
   const totalPaid  = payments.filter(p=>p.type==='دفعة').reduce((s,p)=>s+p.amount,0);
+  const totalPurch = invoices.filter(i=>i.type==='فاتورة مشتريات').reduce((s,i)=>s+i.grand,0);
   const stockVal   = products.filter(p=>!p.isService).reduce((s,p)=>s+(p.qty||0)*(p.buyPrice||0),0);
   document.getElementById('an-top-stats').innerHTML = `
     <div class="an-stat"><div class="v">${formatNum(totalSales)}</div><div class="l">${ar?'إجمالي المبيعات':'Total sales'}</div></div>
     <div class="an-stat p"><div class="v">${formatNum(totalRet)}</div><div class="l">${ar?'إجمالي المرتجعات':'Total returns'}</div></div>
     <div class="an-stat b"><div class="v">${formatNum(totalPaid)}</div><div class="l">${ar?'إجمالي الدفعات':'Total payments'}</div></div>
     <div class="an-stat o"><div class="v">${formatNum(stockVal)}</div><div class="l">${ar?'قيمة المخزون':'Stock value'}</div></div>
+    <div class="an-stat p"><div class="v">${formatNum(totalPurch)}</div><div class="l">${ar?'إجمالي المشتريات':'Total purchases'}</div></div>
   `;
 
   // ── sales amount by category
   const catSales = {};
   const catQty   = {};
   invoices.forEach(inv => {
-    if (inv.type==='فاتورة مرتجع') return;
+    if (!isSaleInv(inv)) return;
     inv.items.forEach(it => {
       let cat = ar?'غير مصنف':'Uncategorized';
       if (it.productId) {
@@ -1861,7 +1949,7 @@ function renderAnalytics() {
 
   // ── payment method amounts
   const payAmounts = {};
-  invoices.forEach(i => { const p=i.payment||'كاش'; payAmounts[p]=(payAmounts[p]||0)+i.grand; });
+  invoices.forEach(i => { if (!isSaleInv(i)) return; const p=i.payment||'كاش'; payAmounts[p]=(payAmounts[p]||0)+i.grand; });
 
   // ── المبيعات الشهرية (آخر 12 شهراً، ترتيب زمني)
   const monthly = {};
@@ -1870,7 +1958,7 @@ function renderAnalytics() {
     monthly[(d.getMonth()+1)+'/'+d.getFullYear()] = 0;
   }
   invoices.forEach(i => {
-    if (i.type==='فاتورة مرتجع') return;
+    if (!isSaleInv(i)) return;
     const d = new Date(i.date);
     const k = (d.getMonth()+1)+'/'+d.getFullYear();
     if (k in monthly) monthly[k] += i.grand;
@@ -1879,7 +1967,7 @@ function renderAnalytics() {
   // ── أفضل 10 أصناف مبيعاً (بالإيراد)
   const prodSales = {};
   invoices.forEach(inv => {
-    if (inv.type==='فاتورة مرتجع') return;
+    if (!isSaleInv(inv)) return;
     inv.items.forEach(it => { prodSales[it.desc] = (prodSales[it.desc]||0) + it.total; });
   });
   const topProducts = Object.fromEntries(Object.entries(prodSales).sort((a,b)=>b[1]-a[1]).slice(0,10));
@@ -1888,7 +1976,7 @@ function renderAnalytics() {
   const brSales = {}, brProfit = {};
   const brName = id => { if (!id) return ar?'المركز الرئيسي':'HQ'; const b=branches.find(x=>String(x.id)===String(id)); return b?b.name:(ar?'فرع محذوف':'Deleted'); };
   invoices.forEach(inv => {
-    if (inv.type==='فاتورة مرتجع') return;
+    if (!isSaleInv(inv)) return;
     const k = brName(inv.branchId);
     brSales[k] = (brSales[k]||0) + inv.grand;
     let profit = 0;
@@ -2469,6 +2557,31 @@ function saveAndPrint() {
 }
 
 function _storeInvoice(inv) {
+  // فاتورة المشتريات: تُربط بمورد (لا بعميل) وتزيد المخزون وتحدّث سعر الشراء
+  if (inv.type === 'فاتورة مشتريات') {
+    let s = suppliers.find(x => x.name === inv.clientName);
+    if (!s) {
+      s = { id: Date.now()+2, num: getNextSupplierNum(), name: inv.clientName, phone: inv.clientPhone||'', taxNo:'', notes:'' };
+      suppliers.push(s); save('suppliers');
+    }
+    inv.supplierId = s.id;
+    inv.clientId = null;
+    inv.clientInvNum = '-';
+    inv.items.forEach(item=>{
+      if (!item.productId) return;
+      const p = products.find(x=>x.id===parseInt(item.productId));
+      if (p && !p.isService && p.qty !== null) {
+        p.qty += item.qty;
+        if (item.price > 0) p.buyPrice = item.price; // تحديث تكلفة الشراء بآخر سعر
+      }
+    });
+    save('products');
+    invoices.push(inv);
+    nextInvNum++;
+    lsSet('nextInvNum', nextInvNum);
+    save('invoices');
+    return;
+  }
   // Auto-register customer if not exists (so client numbering is always enforced)
   if (!inv.clientId) {
     const c = { num:inv.clientNum, name:inv.clientName, phone:inv.clientPhone, id:Date.now()+1 };
@@ -2716,11 +2829,12 @@ const PERM_DEFS = [
   ['invoices',  '🧾 الفواتير (عرض وإنشاء وطباعة)'],
   ['products',  '📦 المستودع والأصناف'],
   ['customers', '👥 العملاء والكشوف والدفعات'],
+  ['purchases', '🚚 المشتريات والموردون'],
   ['analytics', '📊 التحليلات والتقارير'],
   ['archive',   '🗂️ الأرشيف'],
   ['settings',  '⚙️ الإعدادات والشعار (حساس)'],
 ];
-const DEFAULT_PERMS = { invoices:true, products:true, customers:true, analytics:true, archive:true, settings:false };
+const DEFAULT_PERMS = { invoices:true, products:true, customers:true, purchases:true, analytics:true, archive:true, settings:false };
 const PERM_SCREENS = {
   'invoice-list':'invoices', 'invoice-form-screen':'invoices', 'print-screen':'invoices',
   'receipt-screen':'customers',
@@ -3015,6 +3129,182 @@ function renderCustomers() {
     </tr>`;}).join('');
 }
 
+// ═══════════════ المشتريات والموردون
+let supStmtId = null;
+function closeModal2(id){ document.getElementById(id).classList.remove('open'); }
+function getNextSupplierNum(){ return suppliers.length ? Math.max(...suppliers.map(s=>parseInt(s.num)||0))+1 : 1; }
+// المستحق للمورد = فواتير المشتريات منه ناقص ما دُفع له
+function supplierBalance(sid){
+  let bal = 0;
+  invoices.forEach(i=>{ if (i.type==='فاتورة مشتريات' && String(i.supplierId)===String(sid)) bal += i.grand; });
+  supPayments.forEach(p=>{ if (String(p.supplierId)===String(sid)) bal -= p.amount; });
+  return bal;
+}
+function showSuppliers(){
+  if (!canAccess('purchases')) { permDenied('purchases'); return; }
+  renderSuppliers();
+  document.getElementById('suppliers-modal').classList.add('open');
+}
+function renderSuppliers(){
+  const q = (document.getElementById('sup-search')?.value||'').trim().toLowerCase();
+  const list = suppliers.filter(s=> !q || (s.name||'').toLowerCase().includes(q) || (s.phone||'').includes(q) || String(s.num||'').includes(q));
+  document.getElementById('sup-empty').style.display = list.length ? 'none' : 'block';
+  document.getElementById('suppliers-tbody').innerHTML = list.map(s=>{
+    const bal = supplierBalance(s.id);
+    return `<tr>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">${s.num||'-'}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center">
+        <div style="font-weight:600">${escHtml(s.name)}</div>
+        ${s.phone?`<div style="font-size:.72rem;color:#888;direction:ltr">${escHtml(s.phone)}</div>`:''}
+      </td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;font-weight:bold;color:${bal>0?'#c62828':'#2e7d32'}">${formatNum(bal)}</td>
+      <td style="padding:7px;border-bottom:1px solid #eee;text-align:center;white-space:nowrap">
+        <button class="btn btn-success btn-sm" onclick="newPurchaseInvoice(${s.id})">🧾 فاتورة شراء</button>
+        <button class="btn btn-info btn-sm" onclick="showSupStatement(${s.id})">كشف</button>
+        <button class="btn btn-primary btn-sm" onclick="openSupplierPanel(${s.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSupplier(${s.id})">حذف</button>
+      </td>
+    </tr>`;}).join('');
+}
+function openSupplierPanel(id){
+  const s = id ? suppliers.find(x=>x.id===id) : null;
+  document.getElementById('sup-panel-title').textContent = s ? 'تعديل بيانات المورد' : 'إضافة مورد جديد';
+  document.getElementById('s2-edit-id').value = s ? s.id : '';
+  document.getElementById('s2-num').value   = s ? (s.num||'') : '';
+  document.getElementById('s2-name').value  = s ? s.name : '';
+  document.getElementById('s2-phone').value = s ? (s.phone||'') : '';
+  document.getElementById('s2-tax').value   = s ? (s.taxNo||'') : '';
+  document.getElementById('s2-notes').value = s ? (s.notes||'') : '';
+  document.getElementById('supplier-panel').classList.add('open');
+}
+function saveSupplierFull(){
+  const editId = document.getElementById('s2-edit-id').value;
+  const name = document.getElementById('s2-name').value.trim();
+  if (!name) { alert('الرجاء إدخال اسم المورد'); return; }
+  let num = document.getElementById('s2-num').value.trim();
+  if (num && suppliers.find(s=>String(s.num)===String(num) && String(s.id)!==editId)) { alert('رقم المورد مستخدم'); return; }
+  if (!num) num = getNextSupplierNum();
+  const data = { num, name,
+    phone: document.getElementById('s2-phone').value.trim(),
+    taxNo: document.getElementById('s2-tax').value.trim(),
+    notes: document.getElementById('s2-notes').value.trim() };
+  if (editId) {
+    const s = suppliers.find(x=>String(x.id)===editId);
+    if (s) { Object.assign(s, data); invoices.forEach(i=>{ if (String(i.supplierId)===editId) i.clientName=s.name; }); save('invoices'); }
+  } else suppliers.push({ id: Date.now(), ...data });
+  save('suppliers');
+  closeModal2('supplier-panel');
+  renderSuppliers();
+}
+function deleteSupplier(id){
+  if (invoices.some(i=>String(i.supplierId)===String(id)) || supPayments.some(p=>String(p.supplierId)===String(id))) {
+    alert('لا يمكن حذف مورد له فواتير أو دفعات'); return;
+  }
+  if (!confirm('حذف المورد؟')) return;
+  suppliers = suppliers.filter(s=>s.id!==id); save('suppliers'); renderSuppliers();
+}
+// فاتورة شراء من مورد: نموذج الفاتورة بنوع مشتريات واسم المورد
+function newPurchaseInvoice(sid){
+  const s = suppliers.find(x=>x.id===sid); if (!s) return;
+  closeModal('suppliers-modal');
+  newInvoice();
+  document.getElementById('f-type').value = 'فاتورة مشتريات';
+  document.getElementById('f-client-num').value = s.num||'';
+  document.getElementById('f-client-name').value = s.name;
+  document.getElementById('f-client-phone').value = s.phone||'';
+}
+// كشف حساب المورد
+function showSupStatement(sid){
+  supStmtId = sid;
+  const s = suppliers.find(x=>x.id===sid); if (!s) return;
+  document.getElementById('sup-stmt-title').textContent = 'كشف حساب المورد: '+s.name;
+  document.getElementById('sup-pay-id').value = sid;
+  renderSupStatement(sid);
+  document.getElementById('sup-stmt-modal').classList.add('open');
+}
+function renderSupStatement(sid){
+  const ent = [
+    ...invoices.filter(i=>i.type==='فاتورة مشتريات' && String(i.supplierId)===String(sid))
+      .map(i=>({date:i.date, label:'فاتورة مشتريات #'+i.invNum, credit:i.grand, debit:0})),
+    ...supPayments.filter(p=>String(p.supplierId)===String(sid))
+      .map(p=>({date:p.date, pid:p.id, label:'دفعة — '+(p.method||'')+(p.notes?' — '+p.notes:''), debit:p.amount, credit:0})),
+  ].sort((a,b)=>a.date>b.date?1:-1);
+  const bal = supplierBalance(sid);
+  document.getElementById('sup-stmt-balance').textContent = formatNum(bal)+' ر.س';
+  document.getElementById('sup-stmt-balance').style.color = bal>0?'#c62828':'#2e7d32';
+  const list = document.getElementById('sup-stmt-list');
+  if (!ent.length) { list.innerHTML='<div style="text-align:center;padding:40px;color:#bbb">لا توجد حركات</div>'; return; }
+  let run=0;
+  list.innerHTML = ent.map(e=>{
+    run += e.credit - e.debit;
+    return `<div class="stmt-row ${e.credit?'inv-row':'pay-row'}">
+      <div>
+        <div style="font-size:.85rem;font-weight:600">${escHtml(e.label)}</div>
+        <div style="font-size:.76rem;color:#888">${fmtDate(e.date)}</div>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center;min-width:220px">
+        <span class="dr">${e.credit?formatNum(e.credit)+' ر.س':''}</span>
+        <span class="cr">${e.debit?formatNum(e.debit)+' ر.س':''}</span>
+        <span style="font-size:.82rem;color:#555">مستحق: <b>${formatNum(run)}</b></span>
+        ${e.pid?`<button class="btn btn-info btn-sm" onclick="printSupVoucherById(${e.pid})">🖨 صرف</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+// دفعة للمورد + سند صرف
+function openSupPayment(){
+  document.getElementById('sup-pay-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sup-pay-amount').value='';
+  document.getElementById('sup-pay-notes').value='';
+  document.getElementById('sup-pay-modal').classList.add('open');
+}
+function saveSupPayment(){
+  const amount = parseFloat(document.getElementById('sup-pay-amount').value)||0;
+  if (!amount) { alert('الرجاء إدخال المبلغ'); return; }
+  const sid = parseInt(document.getElementById('sup-pay-id').value);
+  const pay = { id: Date.now(), supplierId: sid,
+    date: document.getElementById('sup-pay-date').value,
+    amount, method: document.getElementById('sup-pay-method').value,
+    notes: document.getElementById('sup-pay-notes').value.trim(),
+    dsbNum: nextDsbNum++ };
+  lsSet('nextDsbNum', String(nextDsbNum));
+  supPayments.push(pay);
+  save('supPayments');
+  closeModal('sup-pay-modal');
+  renderSupStatement(sid);
+  renderSuppliers();
+  if (confirm('تم الحفظ ✔ — خُصم من مستحقات المورد\nطباعة سند الصرف الرسمي؟')) printSupVoucherById(pay.id);
+}
+function printSupVoucherById(pid){
+  const p = supPayments.find(x=>x.id===pid); if (!p) return;
+  const s = suppliers.find(x=>String(x.id)===String(p.supplierId));
+  closeModal('sup-stmt-modal'); closeModal('suppliers-modal'); closeModal('sup-pay-modal');
+  document.getElementById('rc-title').textContent = 'سند صرف';
+  document.getElementById('rc-from-lbl').textContent = 'يُصرف إلى:';
+  document.getElementById('rc-num').textContent  = String(p.dsbNum).padStart(6,'0');
+  document.getElementById('rc-date').textContent = fmtDate(p.date);
+  document.getElementById('rc-from').textContent = s ? s.name : '-';
+  document.getElementById('rc-amount').textContent = toArDigits(formatNum(p.amount.toFixed(2)))+' ريال سعودي';
+  document.getElementById('rc-desc').textContent = p.notes || 'دفعة لمورد عن مشتريات';
+  const remain = Math.max(0, supplierBalance(p.supplierId));
+  const due = remain + p.amount;
+  document.getElementById('rc-due-words').textContent  = 'فقط مبلغ وقدره: '+tafqeet(due)+' ريالاً سعوديًا لا غير.';
+  document.getElementById('rc-paid-words').textContent = 'فقط مبلغ وقدره: '+tafqeet(p.amount)+' ريالاً سعوديًا لا غير.';
+  document.getElementById('rc-remain').textContent = remain > 0
+    ? toArDigits(formatNum(remain))+' ريال سعودي — '+tafqeet(remain)+' ريالاً سعوديًا' : 'لايوجد';
+  const bank = p.method === 'تحويل بنكي';
+  document.getElementById('rc-cash').innerHTML = 'نقدًا <span style="font-size:1.05rem">'+(bank?'☐':'☑')+'</span>';
+  document.getElementById('rc-bank').innerHTML = 'تحويل بنكي <span style="font-size:1.05rem">'+(bank?'☑':'☐')+'</span>';
+  document.getElementById('rc-co-name').textContent = settings.coName;
+  document.getElementById('rc-co-sub').textContent  = settings.coSub;
+  document.getElementById('rc-co-web').textContent  = settings.coWeb;
+  const logo = lsGet('logoImg', null);
+  const img = document.getElementById('rcpt-hdr-img'), svg = document.getElementById('rcpt-hdr-svg');
+  if (logo) { img.src = logo; img.style.display='block'; svg.style.display='none'; }
+  else { img.style.display='none'; svg.style.display='none'; }
+  showScreen('receipt-screen');
+}
+
 // ═══════════════ STATEMENT
 function showStatement(clientId, clientName) {
   stmtClientId = clientId;
@@ -3271,7 +3561,7 @@ function applyBranding() {
 // ═══════════════ UTILS — English numerals everywhere
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function save(key) {
-  const map = {invoices,deletedInvoices,customers,products,payments,branches};
+  const map = {invoices,deletedInvoices,customers,products,payments,branches,suppliers,supPayments};
   lsSet(key, JSON.stringify(map[key]));
 }
 function formatNum(n) { return (parseFloat(n)||0).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:2}); }
@@ -3420,7 +3710,9 @@ function exportToExcel() {
       const c = customers.find(x=>String(x.id)===String(p.clientId));
       return { 'التاريخ':p.date, 'العميل':c?c.name:'', 'النوع':p.type, 'المبلغ':p.amount, 'ملاحظات':p.notes||'' };
     });
-    [[invRows,'الفواتير'],[itemRows,'بنود الفواتير'],[custRows,'العملاء'],[prodRows,'المستودع'],[payRows,'الدفعات']]
+    const supRows = suppliers.map(s=>({ 'رقم المورد':s.num, 'الاسم':s.name, 'الهاتف':s.phone||'', 'الرقم الضريبي':s.taxNo||'', 'المستحق له':supplierBalance(s.id) }));
+    const supPayRows = supPayments.map(p=>{ const s=suppliers.find(x=>String(x.id)===String(p.supplierId)); return { 'رقم السند':p.dsbNum||'', 'التاريخ':p.date, 'المورد':s?s.name:'', 'المبلغ':p.amount, 'الطريقة':p.method||'', 'ملاحظات':p.notes||'' }; });
+    [[invRows,'الفواتير'],[itemRows,'بنود الفواتير'],[custRows,'العملاء'],[prodRows,'المستودع'],[payRows,'الدفعات'],[supRows,'الموردون'],[supPayRows,'دفعات الموردين']]
       .forEach(([rows,name])=>{
         const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{'لا توجد بيانات':''}]);
         if (!wb.Workbook) wb.Workbook = {};
