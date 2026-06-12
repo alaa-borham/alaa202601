@@ -737,6 +737,7 @@ const fbDB   = firebase.firestore();
   <div style="min-height:100vh;background:#aaa;padding:18px">
     <div class="pactions">
       <button class="btn btn-success" onclick="window.print()">🖨️ طباعة السند</button>
+      <button class="btn btn-info" onclick="showScreen('settings-screen')">✏ بيانات الترويسة والشعار</button>
       <button class="btn btn-primary" onclick="showScreen('dashboard')">← رجوع</button>
     </div>
     <div class="rcpt-print">
@@ -1172,9 +1173,7 @@ let invoices=[], deletedInvoices=[], customers=[], products=[], payments=[], bra
 let nextInvNum=1, nextProdSeq=1, nextRcptNum=1, nextDsbNum=1;
 let lang = localStorage.getItem('lang') || 'ar';
 const DEF_SETTINGS = {
-  coName:'LEVEL7   لتلبية احتياجات المتخصصين والهواه في مجال الخياطة',
-  coSub:'تصميم ـ تدريب ـ استشارات ـ مستلزمات ـ ادوات ـ معدات',
-  coWeb:'level7ksa.com', taxRate:0, defPay:'كاش',
+  coName:'', coSub:'', coWeb:'', taxRate:0, defPay:'كاش',
 };
 let settings = {...DEF_SETTINGS};
 
@@ -3189,7 +3188,7 @@ function printReceipt(p) {
   const logo = lsGet('logoImg', null);
   const img = document.getElementById('rcpt-hdr-img'), svg = document.getElementById('rcpt-hdr-svg');
   if (logo) { img.src = logo; img.style.display='block'; svg.style.display='none'; }
-  else { img.style.display='none'; svg.style.display='block'; }
+  else { img.style.display='none'; svg.style.display='none'; }
   showScreen('receipt-screen');
 }
 
@@ -3249,7 +3248,7 @@ function applyBranding() {
     hdrImg.src = logo; hdrImg.style.width = lw+'px'; hdrImg.style.display='block';
     hdrSvg.style.display='none';
   } else {
-    hdrImg.style.display='none'; hdrSvg.style.display='block';
+    hdrImg.style.display='none'; hdrSvg.style.display='none';
   }
   // background
   const bgImg = document.getElementById('print-bg-img');
@@ -3261,8 +3260,7 @@ function applyBranding() {
     bgImg.src = logo; bgImg.style.width = bw+'%'; bgImg.style.opacity = (bo/100); bgImg.style.display='block';
     bgSvg.style.display='none';
   } else {
-    bgImg.style.display='none'; bgSvg.style.display='block';
-    bgSvg.style.width = bw+'%'; bgSvg.style.opacity = (bo/100);
+    bgImg.style.display='none'; bgSvg.style.display='none';
   }
 }
 
