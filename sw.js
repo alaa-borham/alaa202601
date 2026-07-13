@@ -1,7 +1,7 @@
 // عامل الخدمة LEVEL7 — استراتيجية «الشبكة أولاً»:
 // عند توفر الموقع يُحمَّل دائماً أحدث إصدار (مثل اللايف)،
 // وإن تعطل الموقع يعمل التطبيق من آخر نسخة محفوظة على الجهاز.
-const CACHE = 'level7-v1';
+const CACHE = 'level7-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 

@@ -4594,8 +4594,15 @@ window.addEventListener('hashchange', ()=>location.reload());
 <script>
 // تسجيل عامل الخدمة (سكربت مستقل كي يعمل حتى لو فشل تحميل Firebase):
 // نسخة احتياطية محلية تعمل عند تعطل الموقع وتتحدث تلقائياً منه
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost'))
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').then(reg=>{ try{reg.update();}catch(_){} }).catch(()=>{});
+  // عند تفعيل نسخة جديدة من عامل الخدمة: إعادة تحميل واحدة تلقائياً ليظهر أحدث إصدار دون تحديث يدوي
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if (_swReloaded) return; _swReloaded = true;
+    location.reload();
+  });
+}
 </script>
 </body>
 </html>
